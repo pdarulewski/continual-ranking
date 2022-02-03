@@ -14,7 +14,7 @@ from torch import nn
 from torch import optim
 from tqdm import tqdm
 
-from continual_learning.config.paths import WANDB_DIR, LOG_DIR
+from continual_learning.config.paths import LOG_DIR
 
 
 class Avalanche:
@@ -53,7 +53,7 @@ class Avalanche:
         self.wandb_logger = WandBLogger(
             project_name=project_name,
             run_name=f"{self.log_config['strategy']} - {self.log_config['scenario']}",
-            path=WANDB_DIR,
+            path=LOG_DIR,
             params={
                 'config': self.log_config
             }
