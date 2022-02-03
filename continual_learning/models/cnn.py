@@ -32,8 +32,7 @@ class CNN(pl.LightningModule):
         x = F.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
-        output = F.log_softmax(x, dim=1)
-        return output
+        return x
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
@@ -42,7 +41,7 @@ class CNN(pl.LightningModule):
     def shared_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.forward(x)
-        prob = F.softmax(y_hat, dim=1)
+        prob = F.log_softmax(y_hat, dim=1)
         loss = F.cross_entropy(y_hat, y)
 
         return loss, prob, y
