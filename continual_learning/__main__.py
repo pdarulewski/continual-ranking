@@ -1,12 +1,11 @@
-from continual_learning.experiments.new_classes_mnist import NewClassesMNIST
+from pytorch_lightning import seed_everything
+
+from continual_learning.experiments.new_classes_mnist import run_model
 
 
 def main():
-    experiment = NewClassesMNIST()
-    experiment.run_model(
-        [0, 1, 2, 3, 4],
-        [5, 6, 7, 8, 9],
-    )
+    seed_everything(42)
+    run_model()
 
 
 if __name__ == '__main__':
