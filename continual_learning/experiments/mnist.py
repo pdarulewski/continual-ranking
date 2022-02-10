@@ -13,12 +13,12 @@ KWARGS = {
     'batch_size':  64,
     'num_workers': 12,
 }
-BEFORE_CLASSES = [0, 1, 2, 3, 4]
-AFTER_CLASSES = [5, 6, 7, 8, 9]
+BEFORE_CLASSES = [1, 2, 4, 6, 8]
+AFTER_CLASSES = [0, 3, 5, 7, 9]
 
 
 class MNIST(LightningDataModule):
-    def __init__(self, mode: str, epochs: int = 1):
+    def __init__(self, mode: str):
         super().__init__()
         torch.manual_seed(42)
 
@@ -35,34 +35,34 @@ class MNIST(LightningDataModule):
         self.idx_val_after = []
 
         self.mode = mode
-        self.epochs = epochs
 
     def prepare_data(self) -> None:
         transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.1307,), (0.3081,))
         ])
-        self.train_dataset = datasets.MNIST(DATA_DIR, train=True, download=True, transform=transform)
+        self.train = datasets.MNIST(DATA_DIR, train=True, download=True, transform=transform)
+        # self.train_dataset = datasets.MNIST(DATA_DIR, train=True, download=True, transform=transform)
         self.test = datasets.MNIST(DATA_DIR, train=False, transform=transform)
 
     @staticmethod
     def _get_indices(dataset, classes) -> List[int]:
         indices = []
-        for i, value in enumerate(dataset.indices):
-            if dataset.dataset.targets[value] in classes:
+        for i, value in enumerate(dataset.targets):
+            if value in classes:
                 indices.append(i)
 
         return indices
 
     def setup(self, stage: Optional[str] = None) -> None:
-        self.train, self.val = data.random_split(
-            self.train_dataset, [50000, 10000], generator=torch.Generator().manual_seed(42))
+        # self.train, self.val = data.random_split(
+        #     self.train_dataset, [50000, 10000], generator=torch.Generator().manual_seed(42))
 
         if self.mode == 'fine_tune':
             self.idx_train_before = self._get_indices(self.train, BEFORE_CLASSES)
             self.idx_train_after = self._get_indices(self.train, AFTER_CLASSES)
-            self.idx_val_before = self._get_indices(self.val, BEFORE_CLASSES)
-            self.idx_val_after = self._get_indices(self.val, AFTER_CLASSES)
+            # self.idx_val_before = self._get_indices(self.val, BEFORE_CLASSES)
+            # self.idx_val_after = self._get_indices(self.val, AFTER_CLASSES)
 
     def _prepare_dataloader(self, dataset, idx: List[int] = None, shuffle: bool = None):
         if idx:
@@ -76,15 +76,10 @@ class MNIST(LightningDataModule):
         if self.mode == 'full':
             return self._prepare_dataloader(dataset)
         elif self.mode == 'fine_tune':
-            if self.trainer.current_epoch < self.epochs // 2:
-                return self._prepare_dataloader(dataset, idx_before)
-            else:
-                return self._prepare_dataloader(dataset, idx_after)
+            return self._prepare_dataloader(dataset, idx_before), self._prepare_dataloader(dataset, idx_after)
         elif self.mode == 'fine_tune_with_old':
-            if self.trainer.current_epoch < self.epochs // 2:
-                return self._prepare_dataloader(dataset, idx_before)
-            else:
-                return self._prepare_dataloader(dataset, list(range(0, len(dataset), 100)))
+            return self._prepare_dataloader(dataset, idx_before), self._prepare_dataloader(dataset, list(
+                range(0, len(dataset), 100)))
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self._prepare_dataloaders(self.train, self.idx_train_before, self.idx_train_after)

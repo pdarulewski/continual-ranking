@@ -3,18 +3,24 @@ import os
 from datetime import datetime
 from typing import List, Type, Union
 
+import torch
+import torch.nn.functional as F
+from avalanche import benchmarks
 from avalanche.benchmarks.scenarios.new_classes.nc_scenario import NCScenario
 from avalanche.benchmarks.scenarios.new_instances.ni_scenario import NIScenario
 from avalanche.evaluation.metrics import forgetting_metrics, accuracy_metrics, loss_metrics, StreamConfusionMatrix
 from avalanche.logging import WandBLogger, TextLogger, InteractiveLogger, StrategyLogger
 from avalanche.models import BaseModel
-from avalanche.training import strategies
+from avalanche.training import strategies, EWC
 from avalanche.training.plugins import EvaluationPlugin
 from torch import nn
 from torch import optim
 from tqdm import tqdm
 
 from continual_learning.config.paths import LOG_DIR
+from continual_learning.experiments.mnist import MNIST
+from continual_learning.experiments.new_classes_mnist import MODES, MODE
+from continual_learning.models.cnn import CNN
 
 
 class Avalanche:
@@ -114,3 +120,39 @@ class Avalanche:
             results.append(strategy.eval(self.scenario.test_stream, num_workers=0))
 
         self.wandb_logger.wandb.finish()
+
+
+def run_experiment():
+    data_module = MNIST(MODES[MODE])
+    data_module.prepare_data()
+    # data_module.setup()
+
+    scenario = benchmarks.nc_benchmark(
+        data_module.train, data_module.test, n_experiences=2, shuffle=True, seed=42,
+        task_labels=False
+    )
+
+    wandb_logger = WandBLogger(
+        project_name='nc_experiment',
+        path=LOG_DIR,
+    )
+
+    interactive_logger = InteractiveLogger()
+
+    eval_plugin = EvaluationPlugin(
+        accuracy_metrics(minibatch=True, epoch=True, experience=True, stream=True),
+        loss_metrics(minibatch=True, epoch=True, experience=True, stream=True),
+        forgetting_metrics(experience=True, stream=True),
+        loggers=[wandb_logger, interactive_logger]
+    )
+    model = CNN()
+
+    cl_strategy = EWC(
+        model, torch.optim.Adam(model.parameters(), lr=1e-3),
+        F.cross_entropy, train_mb_size=64, train_epochs=3,
+        evaluator=eval_plugin, ewc_lambda=0.1
+    )
+    for experience in scenario.train_stream:
+        print("Current Classes: ", experience.classes_in_this_experience)
+        cl_strategy.train(experience, num_workers=0)
+        cl_strategy.eval(scenario.test_stream)
