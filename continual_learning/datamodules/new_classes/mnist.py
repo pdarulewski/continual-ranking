@@ -1,11 +1,13 @@
+import itertools
+import random
 from typing import List, Optional
 
 import numpy as np
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS, EVAL_DATALOADERS
-from torch.utils import data
 from torch.utils.data import sampler
 
 from continual_learning.datamodules.bases.base_mnist import BaseMNIST
+from continual_learning.datamodules.bases.custom_data_loader import CustomDataLoader
 
 
 class MNIST(BaseMNIST):
@@ -15,6 +17,11 @@ class MNIST(BaseMNIST):
         self.splits = splits
 
         self._targets = list(range(0, 10))
+        self.target_splits = np.array_split(self._targets, self.splits)
+        self.target_splits = [list(i) for i in self.target_splits]
+        self.cumulative_splits = list(itertools.accumulate(self.target_splits))
+
+        random.shuffle(self._targets)
         if splits > len(self._targets):
             raise ValueError('Too many splits for distinct targets')
 
@@ -28,26 +35,34 @@ class MNIST(BaseMNIST):
         return indices
 
     def setup(self, stage: Optional[str] = None) -> None:
-        target_splits = np.array_split(self._targets, self.splits)
         splits = []
 
-        for split in target_splits:
+        for split in self.target_splits:
             indices = self._get_indices(self.train_dataset, list(split))
-            splits.append(self._prepare_dataloader(self.train_dataset, indices))
+            splits.append(self._prepare_dataloader(self.train_dataset, indices, split))
 
         self.training_dataloader = splits
 
-    def _prepare_dataloader(self, dataset, idx: List[int] = None):
+        splits = []
+
+        for split in self.cumulative_splits:
+            indices = self._get_indices(self.test_dataset, list(split))
+            splits.append(self._prepare_dataloader(self.test_dataset, indices, split))
+
+        self.validation_dataloader = splits
+
+    def _prepare_dataloader(self, dataset, idx: List[int] = None, split: list = None):
         sampler_ = sampler.SubsetRandomSampler(idx)
-        return data.DataLoader(
-            dataset,
+        return CustomDataLoader(
+            classes=split,
+            dataset=dataset,
             sampler=sampler_,
             batch_size=self.batch_size,
-            num_workers=self.num_workers
+            num_workers=self.num_workers,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self.training_dataloader
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
-        pass
+        return self.validation_dataloader

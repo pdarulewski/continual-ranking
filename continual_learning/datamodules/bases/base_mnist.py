@@ -17,6 +17,8 @@ class BaseMNIST(BaseDataModule):
         self.num_workers = num_workers
 
         self.training_dataloader: Optional[List[data.DataLoader]] = []
+        self.validation_dataloader: Optional[List[data.DataLoader]] = []
+        self.testing_dataloader: Optional[List[data.DataLoader]] = []
 
     def prepare_data(self) -> None:
         transform = transforms.Compose([
@@ -27,15 +29,22 @@ class BaseMNIST(BaseDataModule):
         self.test_dataset = datasets.MNIST(DATA_DIR, train=False, transform=transform)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        return data.DataLoader(
+        self.training_dataloader = data.DataLoader(
             self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
+        return self.training_dataloader
+
     def val_dataloader(self) -> EVAL_DATALOADERS:
-        pass
+        self.validation_dataloader = data.DataLoader(
+            self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+
+        return self.validation_dataloader
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
-        return data.DataLoader(
+        self.testing_dataloader = data.DataLoader(
             self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+
+        return self.testing_dataloader
 
     def predict_dataloader(self) -> EVAL_DATALOADERS:
         pass
