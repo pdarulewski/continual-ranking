@@ -5,19 +5,17 @@ from pytorch_lightning.utilities.types import TRAIN_DATALOADERS, EVAL_DATALOADER
 from torch.utils import data
 from torch.utils.data import sampler
 
-from continual_learning.config.params import KWARGS
 from continual_learning.datamodules.bases.base_mnist import BaseMNIST
 
 
 class MNIST(BaseMNIST):
-    def __init__(self, split_size: int = 1, kwargs: dict = None):
-        super().__init__()
+    def __init__(self, batch_size: int, num_workers: int, splits: int = 1):
+        super().__init__(batch_size, num_workers)
 
-        self.split_size = split_size
-        self.kwargs = kwargs if kwargs else KWARGS
+        self.splits = splits
 
         self._targets = list(range(0, 10))
-        if split_size > len(self._targets):
+        if splits > len(self._targets):
             raise ValueError('Too many splits for distinct targets')
 
     @staticmethod
@@ -30,7 +28,7 @@ class MNIST(BaseMNIST):
         return indices
 
     def setup(self, stage: Optional[str] = None) -> None:
-        target_splits = np.array_split(self._targets, self.split_size)
+        target_splits = np.array_split(self._targets, self.splits)
         splits = []
 
         for split in target_splits:
@@ -41,10 +39,15 @@ class MNIST(BaseMNIST):
 
     def _prepare_dataloader(self, dataset, idx: List[int] = None):
         sampler_ = sampler.SubsetRandomSampler(idx)
-        return data.DataLoader(dataset, sampler=sampler_, **self.kwargs)
+        return data.DataLoader(
+            dataset,
+            sampler=sampler_,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers
+        )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self.training_dataloader
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
-        return [None]
+        pass
