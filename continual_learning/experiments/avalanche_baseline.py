@@ -1,7 +1,8 @@
-from typing import List
+from typing import List, Optional, Union
 
 from avalanche import benchmarks
-from avalanche.evaluation.metrics import forgetting_metrics, accuracy_metrics, loss_metrics, StreamConfusionMatrix
+from avalanche.benchmarks import NIScenario, NCScenario
+from avalanche.evaluation.metrics import forgetting_metrics, accuracy_metrics, loss_metrics
 from avalanche.logging import WandBLogger, InteractiveLogger
 from avalanche.training import BaseStrategy
 from avalanche.training.plugins import EvaluationPlugin
@@ -33,9 +34,10 @@ class AvalancheBaseline(Experiment):
         )
 
         self.optimizer = None
-        self.scenario = None
+        self.train_scenario: Optional[Union[NCScenario, NIScenario]] = None
+        self.test_scenario: Optional[Union[NCScenario, NIScenario]] = None
         self.plugins = []
-        self.strategy = None
+        self.strategy: Optional[BaseStrategy] = None
 
     def prepare_dataloaders(self) -> None:
         class_ = DATA_MODULES[self.datamodule_conf.name]
@@ -50,7 +52,14 @@ class AvalancheBaseline(Experiment):
             task_labels=False
         )
 
-        self.scenario = scenario
+        self.train_scenario = scenario
+        self.test_scenario = benchmarks.nc_benchmark(
+            datamodule.train_dataset,
+            datamodule.test_dataset,
+            n_experiences=1,
+            shuffle=True,
+            task_labels=False
+        )
 
     def setup_loggers(self):
         wandb_logger = WandBLogger(
@@ -78,10 +87,9 @@ class AvalancheBaseline(Experiment):
 
     def setup_trainer(self) -> None:
         eval_plugin = EvaluationPlugin(
-            accuracy_metrics(minibatch=True, epoch=True, experience=True, stream=True),
-            loss_metrics(minibatch=True, epoch=True, experience=True, stream=True),
+            accuracy_metrics(minibatch=True, epoch=True, experience=False, stream=False),
+            loss_metrics(minibatch=True, epoch=True, experience=False, stream=False),
             forgetting_metrics(experience=True, stream=True),
-            StreamConfusionMatrix(num_classes=10, save_image=False),
             loggers=self.loggers
         )
 
@@ -90,10 +98,14 @@ class AvalancheBaseline(Experiment):
             self.optimizer,
             functional.cross_entropy,
             plugins=self.plugins,
-            evaluator=eval_plugin
+            evaluator=eval_plugin,
+            train_mb_size=self.datamodule_conf.params.batch_size,
+            eval_mb_size=self.datamodule_conf.params.batch_size
         )
 
     def run_training(self):
-        for experience in tqdm(self.scenario.train_stream):
+        for experience in tqdm(self.train_scenario.train_stream):
             self.strategy.train(experience, num_workers=0)
-            self.strategy.eval(self.scenario.test_stream, num_workers=0)
+            self.strategy.eval(self.train_scenario.test_stream, num_workers=0)
+
+        self.strategy.eval(self.test_scenario.test_stream, num_workers=0)
