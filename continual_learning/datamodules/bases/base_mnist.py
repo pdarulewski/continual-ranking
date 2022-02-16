@@ -1,23 +1,20 @@
 from typing import Optional, List
 
-import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torchvision import datasets, transforms
 
 from continual_learning.config.paths import DATA_DIR
+from continual_learning.datamodules.bases.base_data_module import BaseDataModule
 
 
-class BaseMNIST(pl.LightningDataModule):
+class BaseMNIST(BaseDataModule):
 
     def __init__(self, batch_size: int, num_workers: int):
-        super().__init__()
+        super().__init__(batch_size, num_workers)
 
         self.batch_size = batch_size
         self.num_workers = num_workers
-
-        self.train_dataset: Optional[data.Dataset] = None
-        self.test_dataset: Optional[data.Dataset] = None
 
         self.training_dataloader: Optional[List[data.DataLoader]] = []
 
