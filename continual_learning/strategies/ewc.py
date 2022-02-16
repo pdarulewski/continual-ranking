@@ -60,7 +60,7 @@ class EWC(Strategy):
 
         loss += self.ewc_lambda * penalty
 
-    def on_fit_end(self, trainer: ContinualTrainer, pl_module: "pl.LightningModule") -> None:
+    def on_train_end(self, trainer: ContinualTrainer, pl_module: "pl.LightningModule") -> None:
         exp_counter = trainer.task_id
         importances = self._compute_importances(trainer, pl_module)
         self._update_importances(importances, exp_counter)
