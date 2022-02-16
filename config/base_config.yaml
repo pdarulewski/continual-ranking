@@ -1,6 +1,6 @@
 project_name: mnist_ci
 
-baseline: false
+baseline: true
 
 model: cnn
 
@@ -17,6 +17,6 @@ datamodule:
   params:
     batch_size: 64
     num_workers: 12
-    splits: 4
+    splits: 5
 
 max_epochs: 3

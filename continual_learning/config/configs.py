@@ -1,30 +1,30 @@
 from dataclasses import dataclass
-from typing import List, Any, Union
+from typing import List, Union
 
 from omegaconf import DictConfig
 
 
 @dataclass
-class NewClassesDatamodule:
+class NewClassesDataModule:
     batch_size: int
     num_workers: int
-    split_num: 1
+    splits: 1
 
 
 @dataclass
-class NewInstancesDatamodule:
+class NewInstancesDataModule:
     batch_size: int
     num_workers: int
-    split_num: 1
+    splits: 1
 
 
 @dataclass
-class Datamodule:
+class DataModule:
     name: str
     params: Union[
         DictConfig,
-        NewClassesDatamodule,
-        NewInstancesDatamodule
+        NewClassesDataModule,
+        NewInstancesDataModule
     ]
 
 
@@ -51,5 +51,5 @@ class BaseConfig:
     baseline: str
     model: str
     strategies: List[Strategy]
-    datamodule: Datamodule
+    datamodule: DataModule
     max_epochs: int
