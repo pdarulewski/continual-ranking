@@ -1,63 +1,52 @@
 import itertools
 import os
-from typing import List, Union, Optional, Iterable
+from typing import List
 
-import pytorch_lightning as pl
 import wandb
-from pytorch_lightning.loggers import WandbLogger, LightningLoggerBase
-from torch.utils import data
+from pytorch_lightning.loggers import WandbLogger
 
-from continual_learning.config.configs import Datamodule, Strategy
+from continual_learning.config.configs import DataModule, Strategy
 from continual_learning.config.dicts import STRATEGIES, MODELS, DATA_MODULES
 from continual_learning.config.paths import LOG_DIR
 from continual_learning.continual_trainer import ContinualTrainer
+from continual_learning.experiments.experiment import Experiment
 
 
-class ExperimentRunner:
+class ExperimentRunner(Experiment):
 
     def __init__(
             self,
             model: str,
-            datamodule: Datamodule,
+            datamodule: DataModule,
             strategies: List[Strategy],
             project_name: str = None,
             max_epochs: int = 1,
     ):
-        self._model: pl.LightningModule
-        self._datamodule: pl.LightningDataModule
-        self._strategies: Iterable[pl.Callback]
-        self._loggers: Union[LightningLoggerBase, Iterable[LightningLoggerBase], bool]
+        super().__init__(
+            model=model,
+            datamodule=datamodule,
+            strategies=strategies,
+            project_name=project_name,
+            max_epochs=max_epochs
+        )
 
-        self._model_name = model
-        self._datamodule_conf = datamodule
-        self._strategies_conf = strategies
-
-        self._trainer: Optional[ContinualTrainer] = None
         self._epochs_completed = 0
-        self.max_epochs = max_epochs
-        self.project_name = project_name
 
-        self.train_dataloader: Optional[Union[data.DataLoader, Iterable[data.DataLoader]]] = None
-        self.val_dataloader: Optional[Union[data.DataLoader, Iterable[data.DataLoader]]] = None
-        self.test_dataloader: Optional[Union[data.DataLoader, Iterable[data.DataLoader]]] = None
+    def prepare_dataloaders(self) -> None:
+        datamodule = DATA_MODULES[self.datamodule_conf.name]
+        self.datamodule = datamodule(**self.datamodule_conf.params)
+        self.datamodule.prepare_data()
+        self.datamodule.setup()
 
-        self._callbacks: List[pl.Callback] = []
+        self.train_dataloader = self.datamodule.train_dataloader()
+        self.test_dataloader = self.datamodule.test_dataloader()
 
-    def _prepare_dataloaders(self) -> None:
-        datamodule = DATA_MODULES[self._datamodule_conf.name]
-        self._datamodule = datamodule(**self._datamodule_conf.params)
-        self._datamodule.prepare_data()
-        self._datamodule.setup()
-
-        self.train_dataloader = self._datamodule.train_dataloader()
-        self.test_dataloader = self._datamodule.test_dataloader()
-
-        self.val_dataloader = self._datamodule.val_dataloader()
+        self.val_dataloader = self.datamodule.val_dataloader()
 
         if not self.val_dataloader:
             self.val_dataloader = [None]
 
-    def _setup_loggers(self):
+    def setup_loggers(self):
         wandb.login(key=os.getenv('WANDB_KEY'))
 
         loggers = [
@@ -67,39 +56,34 @@ class ExperimentRunner:
             )
         ]
 
-        self._loggers = loggers
+        self.loggers = loggers
 
-    def _setup_strategies(self) -> None:
-        for d in self._strategies_conf:
+    def setup_strategies(self) -> None:
+        for d in self.strategies_conf:
             strategy = STRATEGIES[d.name](**d.params)
-            self._callbacks.append(strategy)
+            self.callbacks.append(strategy)
 
-    def _setup_model(self) -> None:
-        self._model = MODELS[self._model_name]()
+    def setup_model(self) -> None:
+        self.model = MODELS[self.model_name]()
 
-    def setup(self):
-        self._setup_loggers()
-        self._prepare_dataloaders()
-        self._setup_strategies()
-        self._setup_model()
-
-        self._trainer = ContinualTrainer(
-            logger=self._loggers,
+    def setup_trainer(self) -> None:
+        self.trainer = ContinualTrainer(
+            logger=self.loggers,
             max_epochs=self._epochs_completed + self.max_epochs,
             deterministic=True,
-            callbacks=self._callbacks
+            callbacks=self.callbacks
         )
 
     def run_training(self):
         for train_dataloader, val_dataloader in itertools.zip_longest(
                 self.train_dataloader, self.val_dataloader, fillvalue=self.val_dataloader
         ):
-            self._trainer.fit_loop.max_epochs = self._epochs_completed + self.max_epochs
-            self._trainer.fit_loop.current_epoch = self._epochs_completed
+            self.trainer.fit_loop.max_epochs = self._epochs_completed + self.max_epochs
+            self.trainer.fit_loop.current_epoch = self._epochs_completed
 
-            self._trainer.fit(self._model, train_dataloader, val_dataloader)
+            self.trainer.fit(self.model, train_dataloader, val_dataloader)
 
-            self._epochs_completed = self._trainer.current_epoch + 1
-            self._trainer.task_id += 1
+            self._epochs_completed = self.trainer.current_epoch + 1
+            self.trainer.task_id += 1
 
-            self._trainer.test(self._model, self.test_dataloader)
+            self.trainer.test(self.model, self.test_dataloader)
