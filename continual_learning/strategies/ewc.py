@@ -8,9 +8,10 @@ import torch.nn.functional as F
 from avalanche.training.utils import copy_params_dict, zerolike_params_dict
 
 from continual_learning.continual_trainer import ContinualTrainer
+from continual_learning.strategies.strategy import Strategy
 
 
-class EWC(pl.Callback):
+class EWC(Strategy):
     def __init__(
             self,
             ewc_lambda: float,
