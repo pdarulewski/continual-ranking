@@ -71,7 +71,8 @@ class ExperimentRunner(Experiment):
             logger=self.loggers,
             max_epochs=self._epochs_completed + self.max_epochs,
             deterministic=True,
-            callbacks=self.callbacks
+            callbacks=self.callbacks,
+            log_every_n_steps=1,
         )
 
     def run_training(self):
