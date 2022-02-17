@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from avalanche import benchmarks
 from avalanche.benchmarks import NIScenario, NCScenario
@@ -9,7 +9,7 @@ from avalanche.training.plugins import EvaluationPlugin
 from torch.nn import functional
 from tqdm import tqdm
 
-from continual_learning.config.configs import DataModule, Strategy
+from continual_learning.config.configs import DataModule
 from continual_learning.config.dicts import DATA_MODULES, MODELS, AVALANCHE_STRATEGIES
 from continual_learning.config.paths import LOG_DIR
 from continual_learning.experiments.experiment import Experiment
@@ -21,7 +21,7 @@ class AvalancheBaseline(Experiment):
             self,
             model: str,
             datamodule: DataModule,
-            strategies: List[Strategy],
+            strategies: dict,
             project_name: str = None,
             max_epochs: int = 1,
     ):
@@ -71,14 +71,14 @@ class AvalancheBaseline(Experiment):
         self.loggers = [wandb_logger, interactive_logger]
 
     def setup_strategies(self) -> None:
-        for d in self.strategies_conf:
+        for key, value in self.strategies_conf.items():
             try:
-                if d.name == 'ewc' and d.params.decay_factor is not None and d.params.mode == 'separate':
-                    d.params.decay_factor = None
+                if key == 'ewc' and value.decay_factor is not None and value.mode == 'separate':
+                    value.decay_factor = None
             except KeyError:
                 pass
 
-            strategy = AVALANCHE_STRATEGIES[d.name](**d.params)
+            strategy = AVALANCHE_STRATEGIES[key](**value)
             self.plugins.append(strategy)
 
     def setup_model(self) -> None:
@@ -100,7 +100,8 @@ class AvalancheBaseline(Experiment):
             plugins=self.plugins,
             evaluator=eval_plugin,
             train_mb_size=self.datamodule_conf.params.batch_size,
-            eval_mb_size=self.datamodule_conf.params.batch_size
+            eval_mb_size=self.datamodule_conf.params.batch_size,
+            train_epochs=self.max_epochs
         )
 
     def run_training(self):

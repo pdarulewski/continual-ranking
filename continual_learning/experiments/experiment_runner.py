@@ -1,11 +1,10 @@
 import itertools
 import os
-from typing import List
 
 import wandb
 from pytorch_lightning.loggers import WandbLogger
 
-from continual_learning.config.configs import DataModule, Strategy
+from continual_learning.config.configs import DataModule
 from continual_learning.config.dicts import STRATEGIES, MODELS, DATA_MODULES
 from continual_learning.config.paths import LOG_DIR
 from continual_learning.continual_trainer import ContinualTrainer
@@ -18,7 +17,7 @@ class ExperimentRunner(Experiment):
             self,
             model: str,
             datamodule: DataModule,
-            strategies: List[Strategy],
+            strategies: dict,
             project_name: str = None,
             max_epochs: int = 1,
     ):
@@ -59,8 +58,8 @@ class ExperimentRunner(Experiment):
         self.loggers = loggers
 
     def setup_strategies(self) -> None:
-        for d in self.strategies_conf:
-            strategy = STRATEGIES[d.name](**d.params)
+        for key, value in self.strategies_conf.items():
+            strategy = STRATEGIES[key](**value)
             self.callbacks.append(strategy)
 
     def setup_model(self) -> None:
@@ -87,4 +86,4 @@ class ExperimentRunner(Experiment):
             self._epochs_completed = self.trainer.current_epoch + 1
             self.trainer.task_id += 1
 
-            self.trainer.test(self.model, self.test_dataloader)
+        self.trainer.test(self.model, self.test_dataloader)

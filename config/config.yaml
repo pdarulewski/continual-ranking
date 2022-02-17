@@ -1,0 +1,19 @@
+project_name: mnist_ci
+
+baseline: true
+#baseline: false
+
+model: cnn
+
+datamodule:
+  name: nc_mnist
+  params:
+    batch_size: 64
+    num_workers: 12
+    splits: 5
+
+max_epochs: 2
+
+defaults:
+  #  - strategies/ewc
+  - strategies/gem

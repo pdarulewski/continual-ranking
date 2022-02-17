@@ -3,7 +3,7 @@ from typing import List, Union, Optional, Iterable, Any
 
 import pytorch_lightning as pl
 
-from continual_learning.config.configs import DataModule, Strategy
+from continual_learning.config.configs import DataModule
 from continual_learning.continual_trainer import ContinualTrainer
 from continual_learning.types import Loggers, Dataloaders
 
@@ -14,7 +14,7 @@ class Experiment(ABC):
             self,
             model: str,
             datamodule: DataModule,
-            strategies: List[Strategy],
+            strategies: dict,
             project_name: str = None,
             max_epochs: int = 1,
     ):
