@@ -17,11 +17,13 @@ class MNIST(BaseMNIST):
         self.splits = splits
 
         self._targets = list(range(0, 10))
-        self.target_splits = np.array_split(self._targets, self.splits)
-        self.target_splits = [list(i) for i in self.target_splits]
+        random.shuffle(self._targets)
+
+        self.target_splits = [list(i) for i in np.array_split(self._targets, self.splits)]
+        # self.target_splits = [[2, 6], [8, 1], [4, 5], [0, 9], [3, 7]]
+
         self.cumulative_splits = list(itertools.accumulate(self.target_splits))
 
-        random.shuffle(self._targets)
         if splits > len(self._targets):
             raise ValueError('Too many splits for distinct targets')
 

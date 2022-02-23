@@ -2,6 +2,7 @@ import itertools
 import os
 
 import wandb
+from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from continual_learning.config.configs import DataModule
@@ -61,6 +62,11 @@ class ExperimentRunner(Experiment):
         for key, value in self.strategies_conf.items():
             strategy = STRATEGIES[key](**value)
             self.callbacks.append(strategy)
+
+        early_stopping = EarlyStopping(
+            monitor='val_accuracy', min_delta=0.00, patience=3, verbose=False, mode='max')
+
+        self.callbacks.append(early_stopping)
 
     def setup_model(self) -> None:
         self.model = MODELS[self.model_name]()

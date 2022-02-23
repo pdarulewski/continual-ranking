@@ -29,20 +29,16 @@ class DataModule:
 
 
 @dataclass
-class EWC:
+class Strategy:
+    pass
+
+
+@dataclass
+class EWC(Strategy):
     ewc_lambda: float
     mode: str
     decay_factor: float
     keep_importance_data: bool
-
-
-@dataclass
-class Strategy:
-    name: str
-    params: Union[
-        DictConfig,
-        EWC,
-    ]
 
 
 @dataclass

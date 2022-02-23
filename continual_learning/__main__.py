@@ -7,7 +7,7 @@ from continual_learning.experiments.avalanche_baseline import AvalancheBaseline
 from continual_learning.experiments.experiment_runner import ExperimentRunner
 
 
-@hydra.main(config_path=CONFIG_DIR, config_name='base_config')
+@hydra.main(config_path=CONFIG_DIR, config_name='config')
 def main(cfg: BaseConfig):
     seed_everything(42)
 
