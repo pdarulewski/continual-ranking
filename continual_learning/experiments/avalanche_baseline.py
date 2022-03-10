@@ -1,15 +1,17 @@
 from typing import Optional, Union
 
+import wandb
 from avalanche import benchmarks
 from avalanche.benchmarks import NIScenario, NCScenario
 from avalanche.evaluation.metrics import forgetting_metrics, accuracy_metrics, loss_metrics
 from avalanche.logging import WandBLogger, InteractiveLogger
 from avalanche.training import BaseStrategy
 from avalanche.training.plugins import EvaluationPlugin
+from omegaconf import OmegaConf
 from torch.nn import functional
 from tqdm import tqdm
 
-from continual_learning.config.configs import DataModule
+from continual_learning.config.configs import DataModule, BaseConfig
 from continual_learning.config.dicts import DATA_MODULES, MODELS, AVALANCHE_STRATEGIES
 from continual_learning.config.paths import LOG_DIR
 from continual_learning.experiments.experiment import Experiment
@@ -24,13 +26,15 @@ class AvalancheBaseline(Experiment):
             strategies: dict,
             project_name: str = None,
             max_epochs: int = 1,
+            cfg: BaseConfig = None
     ):
         super().__init__(
             model=model,
             datamodule=datamodule,
             strategies=strategies,
             project_name=project_name,
-            max_epochs=max_epochs
+            max_epochs=max_epochs,
+            cfg=cfg
         )
 
         self.optimizer = None
@@ -66,7 +70,8 @@ class AvalancheBaseline(Experiment):
             project_name=self.project_name,
             path=LOG_DIR,
         )
-
+        wandb.init()
+        wandb.log(OmegaConf.to_container(self.cfg))
         interactive_logger = InteractiveLogger()
         self.loggers = [wandb_logger, interactive_logger]
 

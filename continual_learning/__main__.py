@@ -18,6 +18,7 @@ def main(cfg: BaseConfig):
             strategies=cfg.strategies,
             project_name=cfg.project_name,
             max_epochs=cfg.max_epochs,
+            cfg=cfg
         )
 
         experiment.execute()
@@ -29,6 +30,7 @@ def main(cfg: BaseConfig):
             strategies=cfg.strategies,
             project_name=cfg.project_name,
             max_epochs=cfg.max_epochs,
+            cfg=cfg
         )
         experiment.execute()
 

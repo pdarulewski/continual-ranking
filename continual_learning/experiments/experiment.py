@@ -3,7 +3,7 @@ from typing import List, Union, Optional, Iterable, Any
 
 import pytorch_lightning as pl
 
-from continual_learning.config.configs import DataModule
+from continual_learning.config.configs import DataModule, BaseConfig
 from continual_learning.continual_trainer import ContinualTrainer
 from continual_learning.types import Loggers, Dataloaders
 
@@ -17,6 +17,7 @@ class Experiment(ABC):
             strategies: dict,
             project_name: str = None,
             max_epochs: int = 1,
+            cfg: BaseConfig = None
     ):
         self.model: Optional[pl.LightningModule] = None
         self.datamodule: Optional[pl.LightningDataModule] = None
@@ -36,6 +37,8 @@ class Experiment(ABC):
         self.test_dataloader: Dataloaders = None
 
         self.callbacks: List[pl.Callback] = []
+
+        self.cfg = cfg
 
     @abstractmethod
     def prepare_dataloaders(self) -> None:

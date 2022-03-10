@@ -46,6 +46,6 @@ class BaseConfig:
     project_name: str
     baseline: str
     model: str
-    strategies: List[Strategy]
+    strategies: Union[dict, List[Strategy]]
     datamodule: DataModule
     max_epochs: int

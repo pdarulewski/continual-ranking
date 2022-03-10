@@ -2,10 +2,11 @@ import itertools
 import os
 
 import wandb
+from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
-from continual_learning.config.configs import DataModule
+from continual_learning.config.configs import DataModule, BaseConfig
 from continual_learning.config.dicts import STRATEGIES, MODELS, DATA_MODULES
 from continual_learning.config.paths import LOG_DIR
 from continual_learning.continual_trainer import ContinualTrainer
@@ -21,13 +22,15 @@ class ExperimentRunner(Experiment):
             strategies: dict,
             project_name: str = None,
             max_epochs: int = 1,
+            cfg: BaseConfig = None
     ):
         super().__init__(
             model=model,
             datamodule=datamodule,
             strategies=strategies,
             project_name=project_name,
-            max_epochs=max_epochs
+            max_epochs=max_epochs,
+            cfg=cfg
         )
 
         self._epochs_completed = 0
@@ -49,14 +52,15 @@ class ExperimentRunner(Experiment):
     def setup_loggers(self):
         wandb.login(key=os.getenv('WANDB_KEY'))
 
-        loggers = [
-            WandbLogger(
-                project=self.project_name,
-                save_dir=LOG_DIR,
-            )
-        ]
+        logger = WandbLogger(
+            project=self.project_name,
+            save_dir=LOG_DIR,
+        )
 
-        self.loggers = loggers
+        wandb.init()
+        wandb.log(OmegaConf.to_container(self.cfg))
+
+        self.loggers = [logger]
 
     def setup_strategies(self) -> None:
         for key, value in self.strategies_conf.items():
