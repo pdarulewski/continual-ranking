@@ -1,7 +1,7 @@
 project_name: mnist_ci
 
-baseline: true
-#baseline: false
+#baseline: true
+baseline: false
 
 model: cnn
 
@@ -15,5 +15,6 @@ datamodule:
 max_epochs: 2
 
 defaults:
+  - _self_
   #  - strategies/ewc
   - strategies/gem
