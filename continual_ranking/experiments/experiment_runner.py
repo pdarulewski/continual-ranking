@@ -6,11 +6,11 @@ from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
-from continual_learning.config.configs import DataModule, BaseConfig
-from continual_learning.config.dicts import STRATEGIES, MODELS, DATA_MODULES
-from continual_learning.config.paths import LOG_DIR
-from continual_learning.continual_trainer import ContinualTrainer
-from continual_learning.experiments.experiment import Experiment
+from continual_ranking.config.configs import DataModule, BaseConfig
+from continual_ranking.config.dicts import STRATEGIES, MODELS, DATA_MODULES
+from continual_ranking.config.paths import LOG_DIR
+from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
+from continual_ranking.experiments.experiment import Experiment
 
 
 class ExperimentRunner(Experiment):

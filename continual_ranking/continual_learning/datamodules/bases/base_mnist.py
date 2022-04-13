@@ -4,8 +4,8 @@ from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADER
 from torch.utils import data
 from torchvision import datasets, transforms
 
-from continual_learning.config.paths import DATA_DIR
-from continual_learning.datamodules.bases.base_data_module import BaseDataModule
+from continual_ranking.config.paths import DATA_DIR
+from continual_ranking.continual_learning.datamodules.bases.base_data_module import BaseDataModule
 
 
 class BaseMNIST(BaseDataModule):

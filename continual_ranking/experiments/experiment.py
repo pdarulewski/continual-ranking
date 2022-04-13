@@ -3,9 +3,9 @@ from typing import List, Union, Optional, Iterable, Any
 
 import pytorch_lightning as pl
 
-from continual_learning.config.configs import DataModule, BaseConfig
-from continual_learning.continual_trainer import ContinualTrainer
-from continual_learning.types import Loggers, Dataloaders
+from continual_ranking.config.configs import DataModule, BaseConfig
+from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
+from continual_ranking.types import Loggers, Dataloaders
 
 
 class Experiment(ABC):

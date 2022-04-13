@@ -6,8 +6,8 @@ import numpy as np
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS, EVAL_DATALOADERS
 from torch.utils.data import sampler
 
-from continual_learning.datamodules.bases.base_mnist import BaseMNIST
-from continual_learning.datamodules.bases.custom_data_loader import CustomDataLoader
+from continual_ranking.continual_learning.datamodules.bases.base_mnist import BaseMNIST
+from continual_ranking.continual_learning.datamodules.bases.custom_data_loader import CustomDataLoader
 
 
 class MNIST(BaseMNIST):
