@@ -1,4 +1,4 @@
-from .hf_models import get_bert_biencoder_components
+from .bert import get_bert_biencoder_components
 
 
 def init_hf_bert_biencoder(args, **kwargs):

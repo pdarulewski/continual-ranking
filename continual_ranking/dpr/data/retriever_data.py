@@ -2,10 +2,12 @@ import collections
 import csv
 import glob
 import logging
+import os
 from typing import Dict
 
 import torch
 
+from continual_ranking.config.paths import DATA_DIR
 from continual_ranking.dpr.data.biencoder_data import (
     BiEncoderPassage,
     normalize_passage,
@@ -25,7 +27,7 @@ class RetrieverData(torch.utils.data.Dataset):
         self.data_files = []
 
     def load_data(self):
-        self.data_files = glob.glob(self.file)
+        self.data_files = glob.glob(os.path.join(DATA_DIR, self.file))
         assert (
                 len(self.data_files) == 1
         ), "RetrieverData source currently works with single files only. Files specified: {}".format(self.data_files)

@@ -8,18 +8,18 @@ from typing import List, Tuple
 import hydra
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from torch import nn
 
 from continual_ranking.dpr.data.biencoder_data import BiEncoderPassage
 from continual_ranking.dpr.models import init_biencoder_components
-from continual_ranking.dpr.options import set_cfg_params_from_state, setup_cfg_gpu, setup_logger
 from continual_ranking.dpr.utils.data_utils import Tensorizer
 from continual_ranking.dpr.utils.model_utils import (
     get_model_obj,
     load_states_from_checkpoint,
     move_to_device,
 )
+from continual_ranking.dpr.utils.options import set_cfg_params_from_state, setup_cfg_gpu, setup_logger
 
 logger = logging.getLogger()
 setup_logger(logger)
@@ -68,18 +68,12 @@ def gen_ctx_vectors(
     return results
 
 
-@hydra.main(config_path="../../config", config_name="gen_embs")
+@hydra.main(config_path="../../config", config_name="index")
 def main(cfg: DictConfig):
-    assert cfg.model_file, "Please specify encoder checkpoint as model_file param"
-    assert cfg.ctx_src, "Please specify passages source as ctx_src param"
-
     cfg = setup_cfg_gpu(cfg)
 
     saved_state = load_states_from_checkpoint(cfg.model_file)
     set_cfg_params_from_state(saved_state.encoder_params, cfg)
-
-    logger.info("CFG:")
-    logger.info("%s", OmegaConf.to_yaml(cfg))
 
     tensorizer, encoder, _ = init_biencoder_components(cfg.encoder.encoder_model_type, cfg, inference_only=True)
 
@@ -89,7 +83,7 @@ def main(cfg: DictConfig):
 
     # load weights from the model file
     model_to_load = get_model_obj(encoder)
-    logger.info("Loading saved model state ...")
+    logger.info("Loading saved model state...")
     logger.debug("saved model keys =%s", saved_state.model_dict.keys())
 
     prefix_len = len("ctx_model.")

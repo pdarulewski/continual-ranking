@@ -41,7 +41,6 @@ class Tensorizer:
     Component for all text to model input data conversions and related utility methods
     """
 
-    # Note: title, if present, is supposed to be put before text (i.e. optional title + document body)
     def text_to_tensor(
             self,
             text: str,
@@ -73,12 +72,7 @@ class Tensorizer:
         raise NotImplementedError
 
 
-class RepTokenSelector:
-    def get_positions(self, input_ids: T, tenzorizer: Tensorizer):
-        raise NotImplementedError
-
-
-class RepStaticPosTokenSelector(RepTokenSelector):
+class RepStaticPosTokenSelector:
     def __init__(self, static_position: int = 0):
         self.static_position = static_position
 
@@ -129,7 +123,6 @@ class Dataset(torch.utils.data.Dataset):
         return query
 
 
-# TODO: to be fully replaced with LocalSharded{...}. Keeping it only for old results reproduction compatibility
 class ShardedDataIterator:
     """
     General purpose data iterator to be used for Pytorch's DDP mode where every node should handle its own part of

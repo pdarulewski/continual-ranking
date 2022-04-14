@@ -1,14 +1,12 @@
 import logging
-from typing import Tuple, List
+from typing import Tuple
 
 import torch
-import transformers
 from torch import Tensor
 from torch import nn
 from transformers import AdamW
 from transformers import BertConfig, BertModel
 from transformers import BertTokenizer
-from transformers import RobertaTokenizer
 
 from continual_ranking.dpr.models.biencoder import BiEncoder
 from continual_ranking.dpr.utils.data_utils import Tensorizer
@@ -51,11 +49,10 @@ def get_bert_biencoder_components(cfg, inference_only: bool = False, **kwargs):
     return tensorizer, biencoder, optimizer
 
 
-# TODO: unify tensorizer init methods
 def get_bert_tensorizer(cfg):
     sequence_length = cfg.encoder.sequence_length
     pretrained_model_cfg = cfg.encoder.pretrained_model_cfg
-    tokenizer = get_bert_tokenizer(pretrained_model_cfg, do_lower_case=cfg.do_lower_case)
+    tokenizer = BertTokenizer.from_pretrained(pretrained_model_cfg, do_lower_case=cfg.do_lower_case)
 
     return BertTensorizer(tokenizer, sequence_length)
 
@@ -67,7 +64,7 @@ def get_optimizer(
         weight_decay: float = 0.0,
 ) -> torch.optim.Optimizer:
     optimizer_grouped_parameters = get_hf_model_param_grouping(model, weight_decay)
-    return get_optimizer_grouped(optimizer_grouped_parameters, learning_rate, adam_eps)
+    return AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=adam_eps)
 
 
 def get_hf_model_param_grouping(
@@ -86,24 +83,6 @@ def get_hf_model_param_grouping(
             "weight_decay": 0.0,
         },
     ]
-
-
-def get_optimizer_grouped(
-        optimizer_grouped_parameters: List,
-        learning_rate: float = 1e-5,
-        adam_eps: float = 1e-8,
-) -> torch.optim.Optimizer:
-    optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=adam_eps)
-    return optimizer
-
-
-def get_bert_tokenizer(pretrained_cfg_name: str, do_lower_case: bool = True):
-    return BertTokenizer.from_pretrained(pretrained_cfg_name, do_lower_case=do_lower_case)
-
-
-def get_roberta_tokenizer(pretrained_cfg_name: str, do_lower_case: bool = True):
-    # still uses HF code for tokenizer since they are the same
-    return RobertaTokenizer.from_pretrained(pretrained_cfg_name, do_lower_case=do_lower_case)
 
 
 class HFBertEncoder(BertModel):
@@ -142,25 +121,8 @@ class HFBertEncoder(BertModel):
             attention_mask=attention_mask,
         )
 
-        # HF >4.0 version support
-        if transformers.__version__.startswith("4") and isinstance(
-                out,
-                transformers.modeling_outputs.BaseModelOutputWithPoolingAndCrossAttentions,
-        ):
-            sequence_output = out.last_hidden_state
-            pooled_output = None
-            hidden_states = out.hidden_states
-
-        elif self.config.output_hidden_states:
-            sequence_output, pooled_output, hidden_states = out
-        else:
-            hidden_states = None
-            out = super().forward(
-                input_ids=input_ids,
-                token_type_ids=token_type_ids,
-                attention_mask=attention_mask,
-            )
-            sequence_output, pooled_output = out
+        sequence_output = out.last_hidden_state
+        hidden_states = out.hidden_states
 
         if isinstance(representation_token_pos, int):
             pooled_output = sequence_output[:, representation_token_pos, :]

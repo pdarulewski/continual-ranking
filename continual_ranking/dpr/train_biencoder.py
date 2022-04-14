@@ -2,25 +2,16 @@ import logging
 import math
 import os
 import random
-import sys
 import time
 from typing import Tuple
 
 import hydra
 import torch
-from omegaconf import DictConfig, OmegaConf
-from torch import Tensor as T
+from omegaconf import DictConfig
 from torch import nn
 
 from continual_ranking.dpr.models import init_biencoder_components
 from continual_ranking.dpr.models.biencoder import BiEncoderNllLoss, BiEncoderBatch
-from continual_ranking.dpr.options import (
-    setup_cfg_gpu,
-    set_seed,
-    get_encoder_params_state_from_cfg,
-    set_cfg_params_from_state,
-    setup_logger,
-)
 from continual_ranking.dpr.utils.conf_utils import BiencoderDatasetsCfg
 from continual_ranking.dpr.utils.data_utils import DEFAULT_SELECTOR
 from continual_ranking.dpr.utils.data_utils import (
@@ -36,18 +27,19 @@ from continual_ranking.dpr.utils.model_utils import (
     get_model_obj,
     load_states_from_checkpoint,
 )
+from continual_ranking.dpr.utils.options import (
+    setup_cfg_gpu,
+    set_seed,
+    get_encoder_params_state_from_cfg,
+    set_cfg_params_from_state,
+    setup_logger,
+)
 
 logger = logging.getLogger()
 setup_logger(logger)
 
 
 class BiEncoderTrainer:
-    """
-    BiEncoder training pipeline component. Can be used to initiate or resume training and validate the trained model
-    using either binary classification's NLL loss or average rank of the question's gold passages across dataset
-    provided pools of negative passages. For full IR accuracy evaluation, please see generate_dense_embeddings.py
-    and dense_retriever.py CLI tools.
-    """
 
     def __init__(self, cfg: DictConfig):
         self.shard_id = cfg.local_rank if cfg.local_rank != -1 else 0
@@ -235,7 +227,7 @@ class BiEncoderTrainer:
             rep_positions = ds_cfg.selector.get_positions(biencoder_input.question_ids, self.tensorizer)
             encoder_type = ds_cfg.encoder_type
 
-            loss, correct_cnt = _do_biencoder_fwd_pass(
+            loss, correct_cnt = self._do_biencoder_fwd_pass(
                 self.biencoder,
                 biencoder_input,
                 self.tensorizer,
@@ -448,7 +440,7 @@ class BiEncoderTrainer:
             rep_positions = selector.get_positions(biencoder_batch.question_ids, self.tensorizer)
 
             loss_scale = cfg.loss_scale_factors[dataset] if cfg.loss_scale_factors else None
-            loss, correct_cnt = _do_biencoder_fwd_pass(
+            loss, correct_cnt = self._do_biencoder_fwd_pass(
                 self.biencoder,
                 biencoder_batch,
                 self.tensorizer,
@@ -557,105 +549,73 @@ class BiEncoderTrainer:
             logger.info("Using saved scheduler_state")
             self.scheduler_state = saved_state.scheduler_dict
 
+    @staticmethod
+    def _do_biencoder_fwd_pass(
+            model: nn.Module,
+            batch: BiEncoderBatch,
+            tensorizer: Tensorizer,
+            cfg,
+            encoder_type: str,
+            rep_positions=0,
+            loss_scale: float = None,
+    ) -> Tuple[torch.Tensor, int]:
+        batch = BiEncoderBatch(**move_to_device(batch._asdict(), cfg.device))
 
-def _calc_loss(
-        cfg,
-        loss_function,
-        local_q_vector,
-        local_ctx_vectors,
-        local_positive_idxs,
-        local_hard_negatives_idxs: list = None,
-        loss_scale: float = None,
-) -> Tuple[T, bool]:
-    loss, is_correct = loss_function.calc(
-        local_q_vector,
-        local_ctx_vectors,
-        local_positive_idxs,
-        local_hard_negatives_idxs,
-        loss_scale=loss_scale,
-    )
+        q_attn_mask = tensorizer.get_attn_mask(batch.question_ids)
+        ctx_attn_mask = tensorizer.get_attn_mask(batch.context_ids)
 
-    return loss, is_correct
-
-
-def _do_biencoder_fwd_pass(
-        model: nn.Module,
-        input: BiEncoderBatch,
-        tensorizer: Tensorizer,
-        cfg,
-        encoder_type: str,
-        rep_positions=0,
-        loss_scale: float = None,
-) -> Tuple[torch.Tensor, int]:
-    input = BiEncoderBatch(**move_to_device(input._asdict(), cfg.device))
-
-    q_attn_mask = tensorizer.get_attn_mask(input.question_ids)
-    ctx_attn_mask = tensorizer.get_attn_mask(input.context_ids)
-
-    if model.training:
-        model_out = model(
-            input.question_ids,
-            input.question_segments,
-            q_attn_mask,
-            input.context_ids,
-            input.ctx_segments,
-            ctx_attn_mask,
-            encoder_type=encoder_type,
-            representation_token_pos=rep_positions,
-        )
-    else:
-        with torch.no_grad():
+        if model.training:
             model_out = model(
-                input.question_ids,
-                input.question_segments,
+                batch.question_ids,
+                batch.question_segments,
                 q_attn_mask,
-                input.context_ids,
-                input.ctx_segments,
+                batch.context_ids,
+                batch.ctx_segments,
                 ctx_attn_mask,
                 encoder_type=encoder_type,
                 representation_token_pos=rep_positions,
             )
+        else:
+            with torch.no_grad():
+                model_out = model(
+                    batch.question_ids,
+                    batch.question_segments,
+                    q_attn_mask,
+                    batch.context_ids,
+                    batch.ctx_segments,
+                    ctx_attn_mask,
+                    encoder_type=encoder_type,
+                    representation_token_pos=rep_positions,
+                )
 
-    local_q_vector, local_ctx_vectors = model_out
+        local_q_vector, local_ctx_vectors = model_out
 
-    loss_function = BiEncoderNllLoss()
+        loss_function = BiEncoderNllLoss()
 
-    loss, is_correct = _calc_loss(
-        cfg,
-        loss_function,
-        local_q_vector,
-        local_ctx_vectors,
-        input.is_positive,
-        input.hard_negatives,
-        loss_scale=loss_scale,
-    )
-    is_correct = is_correct.sum().item()
-
-    if cfg.n_gpu > 1:
-        loss = loss.mean()
-    if cfg.train.gradient_accumulation_steps > 1:
-        loss = loss / cfg.train.gradient_accumulation_steps
-    return loss, is_correct
-
-
-@hydra.main(config_path="../../config", config_name="biencoder_train_cfg")
-def main(cfg: DictConfig):
-    if cfg.train.gradient_accumulation_steps < 1:
-        raise ValueError(
-            "Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
-                cfg.train.gradient_accumulation_steps
-            )
+        loss, is_correct = loss_function.calc(
+            local_q_vector,
+            local_ctx_vectors,
+            batch.is_positive,
+            batch.hard_negatives,
+            loss_scale=loss_scale,
         )
 
+        is_correct = is_correct.sum().item()
+
+        if cfg.n_gpu > 1:
+            loss = loss.mean()
+        if cfg.train.gradient_accumulation_steps > 1:
+            loss = loss / cfg.train.gradient_accumulation_steps
+        return loss, is_correct
+
+
+@hydra.main(config_path="../../config", config_name="train_biencoder")
+def main(cfg: DictConfig):
     if cfg.output_dir is not None:
         os.makedirs(cfg.output_dir, exist_ok=True)
 
     cfg = setup_cfg_gpu(cfg)
     set_seed(cfg)
-
-    if cfg.local_rank in [-1, 0]:
-        logger.info("CFG (after gpu  configuration):")
-        logger.info("%s", OmegaConf.to_yaml(cfg))
 
     trainer = BiEncoderTrainer(cfg)
 
@@ -670,14 +630,4 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
-    logger.info("Sys.argv: %s", sys.argv)
-    hydra_formatted_args = []
-    for arg in sys.argv:
-        if arg.startswith("--"):
-            hydra_formatted_args.append(arg[len("--"):])
-        else:
-            hydra_formatted_args.append(arg)
-    logger.info("Hydra formatted Sys.argv: %s", hydra_formatted_args)
-    sys.argv = hydra_formatted_args
-
     main()

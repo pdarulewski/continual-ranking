@@ -1,6 +1,7 @@
 import glob
 import json
 import logging
+import os
 import pickle
 import time
 from typing import List, Tuple, Dict, Iterator
@@ -9,19 +10,17 @@ import hydra
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
-from torch import Tensor as T
+from torch import Tensor
 from torch import nn
 
+from continual_ranking.config.paths import DATA_DIR
 from continual_ranking.dpr.data.qa_validation import calculate_matches
-from continual_ranking.dpr.indexer.faiss_indexers import (
-    DenseIndexer,
-)
+from continual_ranking.dpr.indexer.faiss_indexers import DenseIndexer
 from continual_ranking.dpr.models import init_biencoder_components
-from continual_ranking.dpr.models.biencoder import BiEncoder
-from continual_ranking.dpr.options import setup_logger, setup_cfg_gpu, set_cfg_params_from_state
-from continual_ranking.dpr.utils.data_utils import RepTokenSelector, pad_to_len
+from continual_ranking.dpr.utils.data_utils import RepStaticPosTokenSelector, pad_to_len
 from continual_ranking.dpr.utils.data_utils import Tensorizer
 from continual_ranking.dpr.utils.model_utils import get_model_obj, load_states_from_checkpoint
+from continual_ranking.dpr.utils.options import setup_logger, setup_cfg_gpu, set_cfg_params_from_state
 
 logger = logging.getLogger()
 setup_logger(logger)
@@ -33,8 +32,8 @@ def generate_question_vectors(
         questions: List[str],
         bsz: int,
         query_token: str = None,
-        selector: RepTokenSelector = None,
-) -> T:
+        selector: RepStaticPosTokenSelector = None,
+) -> Tensor:
     n = len(questions)
     query_vectors = []
 
@@ -44,7 +43,7 @@ def generate_question_vectors(
 
             if query_token:
                 batch_tensors = [tensorizer.text_to_tensor(" ".join([query_token, q])) for q in batch_questions]
-            elif isinstance(batch_questions[0], T):
+            elif isinstance(batch_questions[0], Tensor):
                 batch_tensors = [q for q in batch_questions]
             else:
                 batch_tensors = [tensorizer.text_to_tensor(q) for q in batch_questions]
@@ -65,18 +64,7 @@ def generate_question_vectors(
             q_seg_batch = torch.zeros_like(q_ids_batch).cuda()
             q_attn_mask = tensorizer.get_attn_mask(q_ids_batch)
 
-            if selector:
-                rep_positions = selector.get_positions(q_ids_batch, tensorizer)
-
-                _, out, _ = BiEncoder.get_representation(
-                    question_encoder,
-                    q_ids_batch,
-                    q_seg_batch,
-                    q_attn_mask,
-                    representation_token_pos=rep_positions,
-                )
-            else:
-                _, out, _ = question_encoder(q_ids_batch, q_seg_batch, q_attn_mask)
+            _, out, _ = question_encoder(q_ids_batch, q_seg_batch, q_attn_mask)
 
             query_vectors.extend(out.cpu().split(1, dim=0))
 
@@ -96,7 +84,7 @@ class DenseRetriever:
         self.tensorizer = tensorizer
         self.selector = None
 
-    def generate_question_vectors(self, questions: List[str], query_token: str = None) -> T:
+    def generate_question_vectors(self, questions: List[str], query_token: str = None) -> Tensor:
         bsz = self.batch_size
         self.question_encoder.eval()
         return generate_question_vectors(
@@ -247,7 +235,7 @@ def get_all_passages(ctx_sources):
     return all_passages
 
 
-@hydra.main(config_path="../../config", config_name="dense_retriever")
+@hydra.main(config_path="../../config", config_name="evaluation")
 def main(cfg: DictConfig):
     cfg = setup_cfg_gpu(cfg)
     saved_state = load_states_from_checkpoint(cfg.model_file)
@@ -348,9 +336,9 @@ def main(cfg: DictConfig):
         input_paths = []
         path_id_prefixes = []
         for i, pattern in enumerate(ctx_files_patterns):
-            pattern_files = glob.glob(pattern)
-            pattern_id_prefix = id_prefixes[i]
+            pattern_files = glob.glob(os.path.join(DATA_DIR, pattern))
             input_paths.extend(pattern_files)
+            pattern_id_prefix = id_prefixes[i]
             path_id_prefixes.extend([pattern_id_prefix] * len(pattern_files))
         logger.info("Embeddings files id prefixes: %s", path_id_prefixes)
         logger.info("Reading all passages data from files: %s", input_paths)

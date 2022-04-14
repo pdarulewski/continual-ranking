@@ -5,6 +5,7 @@ import os
 import hydra
 from omegaconf import DictConfig
 
+from continual_ranking.config.paths import DATA_DIR
 from continual_ranking.dpr.data.biencoder_data import JsonQADataset
 
 logger = logging.getLogger(__name__)
@@ -35,8 +36,9 @@ def _init_dataset(name: str, ds_cfg: DictConfig):
     if os.path.exists(name):
         # use default biencoder json class
         return JsonQADataset(name)
-    elif glob.glob(name):
-        files = glob.glob(name)
+
+    files = glob.glob(os.path.join(DATA_DIR, name))
+    if files:
         return [_init_dataset(f, ds_cfg) for f in files]
     # try to find in cfg
     if name not in ds_cfg:

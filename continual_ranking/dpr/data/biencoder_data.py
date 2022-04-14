@@ -1,10 +1,12 @@
 import collections
 import glob
 import logging
+import os
 from typing import List
 
 from omegaconf import DictConfig
 
+from continual_ranking.config.paths import DATA_DIR
 from continual_ranking.dpr.utils.data_utils import read_data_from_json_files, Dataset
 
 logger = logging.getLogger(__name__)
@@ -57,7 +59,7 @@ class JsonQADataset(Dataset):
             self.data = self.data[start_pos:end_pos]
 
     def _load_all_data(self):
-        self.data_files = glob.glob(self.file)
+        self.data_files = glob.glob(os.path.join(DATA_DIR, self.file))
         logger.info("Data files: %s", self.data_files)
         data = read_data_from_json_files(self.data_files)
         # filter those without positive ctx
