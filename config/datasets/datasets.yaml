@@ -1,0 +1,17 @@
+# @package datasets
+wiki_train5:
+  _target_: continual_ranking.dpr.data.biencoder_data.JsonQADataset
+  file: MSMARCO/passages/wiki_train5.json
+
+wiki_dev5:
+  _target_: continual_ranking.dpr.data.biencoder_data.JsonQADataset
+  file: MSMARCO/passages/wiki_dev5.json
+
+wiki_test5:
+  _target_: continual_ranking.dpr.data.retriever_data.CsvQASrc
+  file: MSMARCO/passages/wiki_test5.tsv
+
+embeddings:
+  _target_: continual_ranking.dpr.data.retriever_data.CsvCtxSrc
+  file: MSMARCO/passages/embeddings5.tsv
+  id_prefix: 'wiki:'
