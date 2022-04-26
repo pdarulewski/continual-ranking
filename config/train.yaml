@@ -1,5 +1,11 @@
 # @package train
 
+defaults:
+  - _self_
+  - datasets
+
+seed: 42
+
 batch_size: 2
 dev_batch_size: 4
 adam_eps: 1e-8
@@ -13,15 +19,12 @@ learning_rate: 1e-5
 # Linear warmup over warmup_steps.
 warmup_steps: 100
 
-# Number of updates steps to accumulate before performing a backward/update pass.
-gradient_accumulation_steps: 1
-
 # Total number of training epochs to perform.
-num_train_epochs: 2
+max_epochs: 2
 eval_per_epoch: 1
-hard_negatives: 1
-other_negatives: 0
-val_av_rank_hard_neg: 30
-val_av_rank_other_neg: 30
 val_av_rank_bsz: 128
 val_av_rank_max_qs: 10000
+
+sequence_length: 256
+
+dropout: 0.1

@@ -8,17 +8,17 @@ from typing import List, Tuple
 import hydra
 import numpy as np
 import torch
-from omegaconf import DictConfig
-from torch import nn
-
 from continual_ranking.dpr.data.biencoder_data import BiEncoderPassage
-from continual_ranking.dpr.models import init_biencoder_components
 from continual_ranking.dpr.utils.data_utils import Tensorizer
 from continual_ranking.dpr.utils.model_utils import (
     get_model_obj,
     load_states_from_checkpoint,
     move_to_device,
 )
+from omegaconf import DictConfig
+from torch import nn
+
+from continual_ranking.dpr.models import get_bert_biencoder_components
 from continual_ranking.dpr.utils.options import set_cfg_params_from_state, setup_cfg_gpu, setup_logger
 
 logger = logging.getLogger()
@@ -68,14 +68,14 @@ def gen_ctx_vectors(
     return results
 
 
-@hydra.main(config_path="../../config", config_name="index")
+@hydra.main(config_path="../../config", config_name="encoding")
 def main(cfg: DictConfig):
     cfg = setup_cfg_gpu(cfg)
 
     saved_state = load_states_from_checkpoint(cfg.model_file)
     set_cfg_params_from_state(saved_state.encoder_params, cfg)
 
-    tensorizer, encoder, _ = init_biencoder_components(cfg.encoder.encoder_model_type, cfg, inference_only=True)
+    tensorizer, encoder, _ = get_bert_biencoder_components(cfg, inference_only=True)
 
     encoder = encoder.ctx_model if cfg.encoder_type == "ctx" else encoder.question_model
 

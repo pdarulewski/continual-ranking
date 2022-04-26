@@ -6,12 +6,12 @@ import os
 from typing import Dict
 
 import torch
-
-from continual_ranking.config.paths import DATA_DIR
 from continual_ranking.dpr.data.biencoder_data import (
     BiEncoderPassage,
     normalize_passage,
 )
+
+from continual_ranking.config.paths import DATA_DIR
 
 logger = logging.getLogger(__name__)
 

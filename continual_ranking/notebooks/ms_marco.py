@@ -49,20 +49,20 @@ def wiki_triplets():
 
 def wiki_parsed():
     df = pd.read_csv(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'subset.tsv.gz'),
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'source', 'subset.tsv.gz'),
         sep='\t'
     )
 
     embeddings = df.head(5).copy(True)
 
-    df.columns = ['question', 'positive_ctxs', 'hard_negative_ctxs']
+    df.columns = ['question', 'positive_ctxs', 'negative_ctxs']
     train, dev, test = np.split(df.sample(frac=1, random_state=42), [int(.6 * len(df)), int(.8 * len(df))])
 
     for frame in (train, dev):
         frame['positive_ctxs'] = frame['positive_ctxs'].apply(
             lambda x: [{'text': x}]
         )
-        frame['hard_negative_ctxs'] = frame['hard_negative_ctxs'].apply(
+        frame['negative_ctxs'] = frame['negative_ctxs'].apply(
             lambda x: [{'text': x}]
         )
 

@@ -1,12 +1,84 @@
 import logging
 import os
 import pickle
-from typing import List, Tuple
+import time
+from typing import List, Tuple, Iterator
 
 import faiss
 import numpy as np
+import torch
+from continual_ranking.dpr.utils.data_utils import RepStaticPosTokenSelector, pad_to_len
+from continual_ranking.dpr.utils.data_utils import Tensorizer
+from torch import Tensor
+from torch import nn
 
 logger = logging.getLogger()
+
+
+def generate_question_vectors(
+        question_encoder: torch.nn.Module,
+        tensorizer: Tensorizer,
+        questions: List[str],
+        bsz: int,
+        query_token: str = None,
+        selector: RepStaticPosTokenSelector = None,
+) -> Tensor:
+    n = len(questions)
+    query_vectors = []
+
+    with torch.no_grad():
+        for j, batch_start in enumerate(range(0, n, bsz)):
+            batch_questions = questions[batch_start: batch_start + bsz]
+
+            if query_token:
+                batch_tensors = [tensorizer.text_to_tensor(" ".join([query_token, q])) for q in batch_questions]
+            elif isinstance(batch_questions[0], Tensor):
+                batch_tensors = [q for q in batch_questions]
+            else:
+                batch_tensors = [tensorizer.text_to_tensor(q) for q in batch_questions]
+
+            # TODO: this only works for Wav2vec pipeline but will crash the regular text pipeline
+            try:
+                max_vector_len = max(q_t.size(1) for q_t in batch_tensors)
+                min_vector_len = min(q_t.size(1) for q_t in batch_tensors)
+            except:
+                max_vector_len = max(q_t.size(0) for q_t in batch_tensors)
+                min_vector_len = min(q_t.size(0) for q_t in batch_tensors)
+
+            if max_vector_len != min_vector_len:
+                # TODO: _pad_to_len move to utils
+                batch_tensors = [pad_to_len(q.squeeze(0), 0, max_vector_len) for q in batch_tensors]
+
+            q_ids_batch = torch.stack(batch_tensors, dim=0).cuda()
+            q_seg_batch = torch.zeros_like(q_ids_batch).cuda()
+            q_attn_mask = tensorizer.get_attn_mask(q_ids_batch)
+
+            _, out, _ = question_encoder(q_ids_batch, q_seg_batch, q_attn_mask)
+
+            query_vectors.extend(out.cpu().split(1, dim=0))
+
+            if len(query_vectors) % 100 == 0:
+                logger.info("Encoded queries %d", len(query_vectors))
+
+    query_tensor = torch.cat(query_vectors, dim=0)
+    logger.info("Total encoded queries tensor %s", query_tensor.size())
+    assert query_tensor.size(0) == len(questions)
+    return query_tensor
+
+
+def iterate_encoded_files(vector_files: list, path_id_prefixes: List = None) -> Iterator[Tuple]:
+    for i, file in enumerate(vector_files):
+        logger.info("Reading file %s", file)
+        id_prefix = None
+        if path_id_prefixes:
+            id_prefix = path_id_prefixes[i]
+        with open(file, "rb") as reader:
+            doc_vectors = pickle.load(reader)
+            for doc in doc_vectors:
+                doc = list(doc)
+                if id_prefix and not str(doc[0]).startswith(id_prefix):
+                    doc[0] = id_prefix + str(doc[0])
+                yield doc
 
 
 class DenseIndexer:
@@ -102,3 +174,73 @@ class DenseFlatIndexer(DenseIndexer):
 
     def get_index_name(self):
         return "flat_index"
+
+
+class DenseRetriever:
+    def __init__(self, question_encoder: nn.Module, batch_size: int, tensorizer: Tensorizer):
+        self.question_encoder = question_encoder
+        self.batch_size = batch_size
+        self.tensorizer = tensorizer
+        self.selector = None
+
+    def generate_question_vectors(self, questions: List[str], query_token: str = None) -> Tensor:
+        bsz = self.batch_size
+        self.question_encoder.eval()
+        return generate_question_vectors(
+            self.question_encoder,
+            self.tensorizer,
+            questions,
+            bsz,
+            query_token=query_token,
+            selector=self.selector,
+        )
+
+
+class LocalFaissRetriever(DenseRetriever):
+    """
+    Does passage retrieving over the provided index and question encoder
+    """
+
+    def __init__(
+            self,
+            question_encoder: nn.Module,
+            batch_size: int,
+            tensorizer: Tensorizer,
+            index: DenseIndexer,
+    ):
+        super().__init__(question_encoder, batch_size, tensorizer)
+        self.index = index
+
+    def index_encoded_data(
+            self,
+            vector_files: List[str],
+            buffer_size: int,
+            path_id_prefixes: List = None,
+    ):
+        """
+        Indexes encoded passages takes form a list of files
+        :param vector_files: file names to get passages vectors from
+        :param buffer_size: size of a buffer (amount of passages) to send for the indexing at once
+        :return:
+        """
+        buffer = []
+        for i, item in enumerate(iterate_encoded_files(vector_files, path_id_prefixes=path_id_prefixes)):
+            buffer.append(item)
+            if 0 < buffer_size == len(buffer):
+                self.index.index_data(buffer)
+                buffer = []
+        self.index.index_data(buffer)
+        logger.info("Data indexing completed.")
+
+    def get_top_docs(self, query_vectors: np.array, top_docs: int = 100) -> List[Tuple[List[object], List[float]]]:
+        """
+        Does the retrieval of the best matching passages given the query vectors batch
+        :param query_vectors:
+        :param top_docs:
+        :return:
+        """
+        time0 = time.time()
+        results = self.index.search_knn(query_vectors, top_docs)
+        logger.info("index search time: %f sec.", time.time() - time0)
+        self.index = None
+        return results

@@ -1,6 +1,6 @@
 defaults:
   - encoder: bert
-  - ctx_sources: datasets
+  - datasets: datasets
 
 # A trained bi-encoder checkpoint file to initialize the model
 model_file:

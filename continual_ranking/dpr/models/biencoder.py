@@ -1,253 +1,79 @@
-import collections
 import logging
-import random
-from typing import Tuple, List
+from typing import Tuple
 
-import numpy as np
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch import nn
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import LambdaLR
 
-from continual_ranking.dpr.data.biencoder_data import BiEncoderSample
-from continual_ranking.dpr.utils.data_utils import Tensorizer
-from continual_ranking.dpr.utils.model_utils import CheckpointState
+from continual_ranking.dpr.models.encoder import Encoder
 
 logger = logging.getLogger(__name__)
 
-BiEncoderBatch = collections.namedtuple(
-    "BiENcoderInput",
-    [
-        "question_ids",
-        "question_segments",
-        "context_ids",
-        "ctx_segments",
-        "is_positive",
-        "hard_negatives",
-        "encoder_type",
-    ],
-)
+
+def dot_product(q_vectors: Tensor, ctx_vectors: Tensor) -> Tensor:
+    return torch.matmul(q_vectors, torch.transpose(ctx_vectors, 0, 1))
 
 
-def dot_product_scores(q_vectors: Tensor, ctx_vectors: Tensor) -> Tensor:
-    """
-    calculates q->ctx scores for every row in ctx_vector
-    :param q_vector:
-    :param ctx_vector:
-    :return:
-    """
-    # q_vector: n1 x D, ctx_vectors: n2 x D, result n1 x n2
-    r = torch.matmul(q_vectors, torch.transpose(ctx_vectors, 0, 1))
-    return r
+class BiEncoder(pl.LightningModule):
 
+    def __init__(self, cfg, max_iterations: int):
+        super().__init__()
+        self.cfg = cfg
 
-def cosine_scores(q_vector: Tensor, ctx_vectors: Tensor):
-    # q_vector: n1 x D, ctx_vectors: n2 x D, result n1 x n2
-    return F.cosine_similarity(q_vector, ctx_vectors, dim=1)
+        self.question_model: Encoder = Encoder.init_encoder()
+        self.context_model: Encoder = Encoder.init_encoder()
 
+        self.train_total_loss = 0
+        self.val_total_loss = 0
+        self.test_total_loss = 0
 
-class BiEncoder(nn.Module):
+        self.scheduler = None
+        self.max_iterations = max_iterations
 
-    def __init__(
-            self,
-            question_model: nn.Module,
-            ctx_model: nn.Module,
-            fix_q_encoder: bool = False,
-            fix_ctx_encoder: bool = False,
-    ):
-        super(BiEncoder, self).__init__()
-        self.question_model = question_model
-        self.ctx_model = ctx_model
-        self.fix_q_encoder = fix_q_encoder
-        self.fix_ctx_encoder = fix_ctx_encoder
-
-    @staticmethod
-    def get_representation(
-            sub_model: nn.Module,
-            ids: Tensor,
-            segments: Tensor,
-            attn_mask: Tensor,
-            fix_encoder: bool = False,
-            representation_token_pos=0,
-    ) -> (Tensor, Tensor, Tensor):
-        sequence_output = None
-        pooled_output = None
-        hidden_states = None
-        if ids is not None:
-            if fix_encoder:
-                with torch.no_grad():
-                    sequence_output, pooled_output, hidden_states = sub_model(
-                        ids,
-                        segments,
-                        attn_mask,
-                        representation_token_pos=representation_token_pos,
-                    )
-
-                if sub_model.training:
-                    sequence_output.requires_grad_(requires_grad=True)
-                    pooled_output.requires_grad_(requires_grad=True)
-            else:
-                sequence_output, pooled_output, hidden_states = sub_model(
-                    ids,
-                    segments,
-                    attn_mask,
-                    representation_token_pos=representation_token_pos,
-                )
-
-        return sequence_output, pooled_output, hidden_states
-
-    def forward(
-            self,
-            question_ids: Tensor,
-            question_segments: Tensor,
-            question_attn_mask: Tensor,
-            context_ids: Tensor,
-            ctx_segments: Tensor,
-            ctx_attn_mask: Tensor,
-            encoder_type: str = None,
-            representation_token_pos=0,
-    ) -> Tuple[Tensor, Tensor]:
-        q_encoder = self.question_model if encoder_type is None or encoder_type == "question" else self.ctx_model
-        _q_seq, q_pooled_out, _q_hidden = self.get_representation(
-            q_encoder,
-            question_ids,
-            question_segments,
-            question_attn_mask,
-            self.fix_q_encoder,
-            representation_token_pos=representation_token_pos,
+    def forward(self, batch) -> Tuple[Tensor, Tensor]:
+        q_pooled_out = self.question_model.forward(
+            batch.question_ids,
+            batch.question_segments,
+            batch.question_attn_mask,
         )
 
-        ctx_encoder = self.ctx_model if encoder_type is None or encoder_type == "ctx" else self.question_model
-        _ctx_seq, ctx_pooled_out, _ctx_hidden = self.get_representation(
-            ctx_encoder, context_ids, ctx_segments, ctx_attn_mask, self.fix_ctx_encoder
+        ctx_pooled_out = self.context_model.forward(
+            batch.context_ids,
+            batch.ctx_segments,
+            batch.ctx_attn_mask
         )
 
         return q_pooled_out, ctx_pooled_out
 
-    def create_biencoder_input(
-            self,
-            samples: List[BiEncoderSample],
-            tensorizer: Tensorizer,
-            insert_title: bool,
-            num_hard_negatives: int = 0,
-            num_other_negatives: int = 0,
-            shuffle: bool = True,
-            shuffle_positives: bool = False,
-            hard_neg_fallback: bool = True,
-            query_token: str = None,
-    ) -> BiEncoderBatch:
-        """
-        Creates a batch of the biencoder training tuple.
-        :param samples: list of BiEncoderSample-s to create the batch for
-        :param tensorizer: components to create model input tensors from a text sequence
-        :param insert_title: enables title insertion at the beginning of the context sequences
-        :param num_hard_negatives: amount of hard negatives per question (taken from samples' pools)
-        :param num_other_negatives: amount of other negatives per question (taken from samples' pools)
-        :param shuffle: shuffles negative passages pools
-        :param shuffle_positives: shuffles positive passages pools
-        :return: BiEncoderBatch tuple
-        """
-        question_tensors = []
-        ctx_tensors = []
-        positive_ctx_indices = []
-        hard_neg_ctx_indices = []
+    def configure_scheduler(self, optimizer):
+        warmup_steps = self.cfg.train.warmup_steps
+        total_training_steps = self.max_iterations * self.cfg.train.max_epochs
 
-        for sample in samples:
-            # ctx+ & [ctx-] composition
-            # as of now, take the first(gold) ctx+ only
-
-            if shuffle and shuffle_positives:
-                positive_ctxs = sample.positive_passages
-                positive_ctx = positive_ctxs[np.random.choice(len(positive_ctxs))]
-            else:
-                positive_ctx = sample.positive_passages[0]
-
-            neg_ctxs = sample.negative_passages
-            hard_neg_ctxs = sample.hard_negative_passages
-            question = sample.query
-            # question = normalize_question(sample.query)
-
-            if shuffle:
-                random.shuffle(neg_ctxs)
-                random.shuffle(hard_neg_ctxs)
-
-            if hard_neg_fallback and len(hard_neg_ctxs) == 0:
-                hard_neg_ctxs = neg_ctxs[0:num_hard_negatives]
-
-            neg_ctxs = neg_ctxs[0:num_other_negatives]
-            hard_neg_ctxs = hard_neg_ctxs[0:num_hard_negatives]
-
-            all_ctxs = [positive_ctx] + neg_ctxs + hard_neg_ctxs
-            hard_negatives_start_idx = 1
-            hard_negatives_end_idx = 1 + len(hard_neg_ctxs)
-
-            current_ctxs_len = len(ctx_tensors)
-
-            sample_ctxs_tensors = [
-                tensorizer.text_to_tensor(ctx.text, title=ctx.title if (insert_title and ctx.title) else None)
-                for ctx in all_ctxs
-            ]
-
-            ctx_tensors.extend(sample_ctxs_tensors)
-            positive_ctx_indices.append(current_ctxs_len)
-            hard_neg_ctx_indices.append(
-                [
-                    i
-                    for i in range(
-                    current_ctxs_len + hard_negatives_start_idx,
-                    current_ctxs_len + hard_negatives_end_idx,
-                )
-                ]
+        def lr_lambda(current_step):
+            if current_step < self.cfg.train.warmup_steps:
+                return float(current_step) / float(max(1, warmup_steps))
+            return max(
+                1e-7,
+                float(total_training_steps - current_step) / float(max(1, total_training_steps - warmup_steps)),
             )
 
-            if query_token:
-                question_tensors.append(tensorizer.text_to_tensor(" ".join([query_token, question])))
-            else:
-                question_tensors.append(tensorizer.text_to_tensor(question))
+        self.scheduler = LambdaLR(optimizer, lr_lambda)
 
-        ctxs_tensor = torch.cat([ctx.view(1, -1) for ctx in ctx_tensors], dim=0)
-        questions_tensor = torch.cat([q.view(1, -1) for q in question_tensors], dim=0)
+    def configure_optimizers(self):
+        optimizer = AdamW(self.parameters(), lr=self.cfg.train.learning_rate, eps=self.cfg.train.adam_eps)
+        self.configure_scheduler(optimizer)
+        return optimizer
 
-        ctx_segments = torch.zeros_like(ctxs_tensor)
-        question_segments = torch.zeros_like(questions_tensor)
-
-        return BiEncoderBatch(
-            questions_tensor,
-            question_segments,
-            ctxs_tensor,
-            ctx_segments,
-            positive_ctx_indices,
-            hard_neg_ctx_indices,
-            "question",
-        )
-
-    def load_state(self, saved_state: CheckpointState, strict: bool = True):
-        # TODO: make a long term HF compatibility fix
-        # if "question_model.embeddings.position_ids" in saved_state.model_dict:
-        #    del saved_state.model_dict["question_model.embeddings.position_ids"]
-        #    del saved_state.model_dict["ctx_model.embeddings.position_ids"]
-        self.load_state_dict(saved_state.model_dict, strict=strict)
-
-    def get_state_dict(self):
-        return self.state_dict()
-
-
-class BiEncoderNllLoss:
-    def calc(
-            self,
+    @staticmethod
+    def calculate_loss(
             q_vectors: Tensor,
             ctx_vectors: Tensor,
             positive_idx_per_question: list,
-            hard_negative_idx_per_question: list = None,
-            loss_scale: float = None,
-    ) -> Tuple[Tensor, int]:
-        """
-        Computes nll loss for the given lists of question and ctx vectors.
-        Note that although hard_negative_idx_per_question in not currently in use, one can use it for the
-        loss modifications. For example - weighted NLL with different factors for hard vs regular negatives.
-        :return: a tuple of loss value and amount of correct predictions per batch
-        """
-        scores = self.get_scores(q_vectors, ctx_vectors)
+    ):
+        scores = dot_product(q_vectors, ctx_vectors)
 
         if len(q_vectors.size()) > 1:
             q_num = q_vectors.size(0)
@@ -261,19 +87,39 @@ class BiEncoderNllLoss:
             reduction="mean",
         )
 
-        max_score, max_idxs = torch.max(softmax_scores, 1)
-        correct_predictions_count = (max_idxs == torch.tensor(positive_idx_per_question).to(max_idxs.device)).sum()
+        return loss
 
-        if loss_scale:
-            loss.mul_(loss_scale)
+    def _shared_step(self, batch, batch_idx):
+        q_pooled_out, ctx_pooled_out = self.forward(batch)
+        loss = self.calculate_loss(
+            q_pooled_out,
+            ctx_pooled_out,
+            batch.is_positive,
+        )
 
-        return loss, correct_predictions_count
+        return loss
 
-    @staticmethod
-    def get_scores(q_vector: Tensor, ctx_vectors: Tensor) -> Tensor:
-        f = BiEncoderNllLoss.get_similarity_function()
-        return f(q_vector, ctx_vectors)
+    def training_step(self, batch, batch_idx):
+        loss = self._shared_step(batch, batch_idx)
+        self.train_total_loss += loss.item()
 
-    @staticmethod
-    def get_similarity_function():
-        return dot_product_scores
+        self.log('train_loss', loss)
+        self.log('train_total_loss', self.train_total_loss)
+        self.log('global_step', float(self.global_step))
+
+    def validation_step(self, batch, batch_idx):
+        loss = self._shared_step(batch, batch_idx)
+        self.val_total_loss += loss.item()
+
+        self.log('val_loss', loss)
+        self.log('val_total_loss', self.val_total_loss)
+
+    def test_step(self, batch, batch_idx):
+        loss = self._shared_step(batch, batch_idx)
+        self.test_total_loss += loss.item()
+
+        self.log('test_loss', loss)
+        self.log('test_total_loss', self.test_total_loss)
+
+    def on_after_backward(self) -> None:
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.train.max_grad_norm)
