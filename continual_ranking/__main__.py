@@ -12,7 +12,7 @@ from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.models.biencoder import BiEncoder
 
 
-@hydra.main(config_path="../../config", config_name='train')
+@hydra.main(config_path="../config", config_name='train')
 def main(cfg: DictConfig):
     seed_everything(42, workers=True)
 
