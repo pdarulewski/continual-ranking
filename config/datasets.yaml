@@ -1,6 +1,5 @@
 # @package datasets
-train: /Users/pdaawr/Documents/dtu/5_sem/repo.nosync/continual-ranking/data/MSMARCO/passages/wiki_train5_copy.json
-#val: /Users/pdaawr/Documents/dtu/5_sem/repo.nosync/continual-ranking/data/MSMARCO/passages/wiki_train5.json
-val: /Users/pdaawr/Documents/dtu/5_sem/repo.nosync/continual-ranking/data/MSMARCO/passages/wiki_dev5.json
-test: /Users/pdaawr/Documents/dtu/5_sem/repo.nosync/continual-ranking/data/MSMARCO/passages/wiki_test5.json
-embeddings: /Users/pdaawr/Documents/dtu/5_sem/repo.nosync/continual-ranking/data/MSMARCO/passages/embeddings5.json
+train: data/MSMARCO/passages/train.json
+val: data/MSMARCO/passages/eval.json
+test: data/MSMARCO/passages/test.json
+embeddings: data/MSMARCO/passages/embeddings.json

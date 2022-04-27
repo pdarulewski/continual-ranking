@@ -1,5 +1,7 @@
+import os
 from typing import Optional
 
+import hydra
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
@@ -17,9 +19,8 @@ class DataModule(pl.LightningDataModule):
         self.test_set = None
 
     def setup(self, stage: Optional[str] = None):
-        self.train_set = TrainingDataset(self.cfg.datasets.train)
-        self.val_set = TrainingDataset(self.cfg.datasets.val)
-        # self.test_set = TrainingDataset(self.cfg.datasets.test)
+        self.train_set = TrainingDataset(os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.train))
+        self.val_set = TrainingDataset(os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.val))
 
     def train_dataloader(self):
         return DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.cfg.train.num_workers)

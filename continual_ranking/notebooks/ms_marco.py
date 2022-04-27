@@ -67,13 +67,13 @@ def wiki_parsed():
             lambda x: [x]
         )
 
-    train.head(5).to_json(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'wiki_train5.json'),
+    train.to_json(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'train.json'),
         orient='records'
     )
 
-    dev.head(5).to_json(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'wiki_dev5.json'),
+    dev.to_json(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'eval.json'),
         orient='records'
     )
 
@@ -82,14 +82,14 @@ def wiki_parsed():
         lambda x: [x]
     )
 
-    test.head(5).to_json(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'wiki_test5.json'),
+    test.to_json(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'test.json'),
         orient='records'
     )
 
     embeddings = embeddings[['question', 'positive_ctxs']]
-    embeddings.head(5).to_json(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'embeddings5.json'),
+    embeddings.to_json(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'embeddings.json'),
         orient='records'
     )
 
