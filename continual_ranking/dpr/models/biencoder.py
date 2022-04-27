@@ -68,8 +68,8 @@ class BiEncoder(pl.LightningModule):
 
     def configure_optimizers(self):
         parameters = [
-            self.question_model.parameters(),
-            self.context_model.parameters()
+            {'params': self.question_model.parameters()},
+            {'params': self.context_model.parameters()},
         ]
         optimizer = AdamW(parameters, lr=self.cfg.train.learning_rate, eps=self.cfg.train.adam_eps)
         self.configure_scheduler(optimizer)
