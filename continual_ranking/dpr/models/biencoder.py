@@ -64,7 +64,7 @@ class BiEncoder(pl.LightningModule):
                 float(total_training_steps - current_step) / float(max(1, total_training_steps - warmup_steps)),
             )
 
-        self.scheduler = LambdaLR(optimizer, lr_lambda)
+        return LambdaLR(optimizer, lr_lambda)
 
     def configure_optimizers(self):
         parameters = [
@@ -72,8 +72,8 @@ class BiEncoder(pl.LightningModule):
             {'params': self.context_model.parameters()},
         ]
         optimizer = AdamW(parameters, lr=self.cfg.train.learning_rate, eps=self.cfg.train.adam_eps)
-        self.configure_scheduler(optimizer)
-        return optimizer
+        scheduler = self.configure_scheduler(optimizer)
+        return [optimizer], [scheduler]
 
     @staticmethod
     def calculate_loss(
