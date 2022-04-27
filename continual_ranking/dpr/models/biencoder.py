@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, List
+from typing import Tuple
 
 import pytorch_lightning as pl
 import torch
@@ -66,23 +66,12 @@ class BiEncoder(pl.LightningModule):
 
         self.scheduler = LambdaLR(optimizer, lr_lambda)
 
-    def _get_parameters(self) -> List[dict]:
-        no_decay = ["bias", "LayerNorm.weight"]
-        parameters = [
-            {
-                "params":       [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
-                "weight_decay": self.cfg.train.weight_decay,
-            },
-            {
-                "params":       [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
-                "weight_decay": 0.0,
-            },
-        ]
-
-        return parameters
-
     def configure_optimizers(self):
-        parameters = self._get_parameters()
+        parameters = [
+            {'params': self.parameters()},
+            {'params': self.question_model.parameters()},
+            {'params': self.context_model.parameters()},
+        ]
         optimizer = AdamW(parameters, lr=self.cfg.train.learning_rate, eps=self.cfg.train.adam_eps)
         self.configure_scheduler(optimizer)
         return optimizer
