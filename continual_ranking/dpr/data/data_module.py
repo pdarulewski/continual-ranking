@@ -12,7 +12,6 @@ class DataModule(pl.LightningDataModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        self.batch_size = cfg.train.batch_size
 
         self.train_set = None
         self.val_set = None
@@ -23,10 +22,12 @@ class DataModule(pl.LightningDataModule):
         self.val_set = TrainingDataset(os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.val))
 
     def train_dataloader(self):
-        return DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.cfg.train.num_workers)
+        return DataLoader(
+            self.train_set, batch_size=self.cfg.biencoder.batch_size, num_workers=self.cfg.biencoder.num_workers)
 
     def val_dataloader(self):
-        return DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.cfg.train.num_workers)
+        return DataLoader(
+            self.val_set, batch_size=self.cfg.biencoder.eval_batch_size, num_workers=self.cfg.biencoder.num_workers)
 
     def test_dataloader(self):
         pass

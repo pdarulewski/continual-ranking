@@ -12,7 +12,7 @@ from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.models.biencoder import BiEncoder
 
 
-@hydra.main(config_path="../config", config_name='train')
+@hydra.main(config_path="../config", config_name='base')
 def main(cfg: DictConfig):
     seed_everything(42, workers=True)
 
@@ -28,7 +28,7 @@ def main(cfg: DictConfig):
     wandb.log(OmegaConf.to_container(cfg))
 
     trainer = Trainer(
-        max_epochs=cfg.train.max_epochs,
+        max_epochs=cfg.biencoder.max_epochs,
         accelerator=accelerator,
         gpus=-1 if accelerator == 'gpu' else 0,
         deterministic=True,
@@ -39,7 +39,7 @@ def main(cfg: DictConfig):
 
     data_module = DataModule(cfg)
     data_module.setup()
-    model = BiEncoder(cfg, math.ceil(len(data_module.train_set) / cfg.train.batch_size))
+    model = BiEncoder(cfg, math.ceil(len(data_module.train_set) / cfg.biencoder.batch_size))
 
     data_module = DataModule(cfg)
     trainer.fit(model, datamodule=data_module)

@@ -1,8 +1,6 @@
 import logging
-import random
 import socket
 
-import numpy as np
 import torch
 from omegaconf import DictConfig
 
@@ -33,27 +31,6 @@ def set_cfg_params_from_state(state: dict, cfg: DictConfig):
                 k = "q_encoder_cp_file"
 
             setattr(cfg.encoder, k, v)
-
-
-def get_encoder_params_state_from_cfg(cfg: DictConfig):
-    """
-    Selects the param values to be saved in a checkpoint, so that a trained model can be used for downstream
-    tasks without the need to specify these parameter again
-    :return: Dict of params to memorize in a checkpoint
-    """
-    return {
-        "do_lower_case": cfg.do_lower_case,
-        "encoder":       cfg.encoder,
-    }
-
-
-def set_seed(args):
-    seed = args.seed
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if args.n_gpu > 0:
-        torch.cuda.manual_seed_all(seed)
 
 
 def setup_cfg_gpu(cfg):

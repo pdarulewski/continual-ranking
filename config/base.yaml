@@ -1,0 +1,13 @@
+defaults:
+  - _self_
+  - datasets
+  - biencoder
+
+seed: 42
+
+experiment_name: default
+
+run_type:
+  sizes: [ 0.5, 0.1, 0.1, 0.1, 0.1 ]
+  continual_learning: false
+  baseline: true

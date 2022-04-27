@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Tuple
 
 import pytorch_lightning as pl
@@ -30,8 +31,9 @@ class BiEncoder(pl.LightningModule):
         self.val_total_loss = 0
         self.test_total_loss = 0
 
-        self.scheduler = None
         self.max_iterations = max_iterations
+
+        self.automatic_optimization = False
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
@@ -53,11 +55,11 @@ class BiEncoder(pl.LightningModule):
         return q_pooled_out, ctx_pooled_out
 
     def configure_scheduler(self, optimizer):
-        warmup_steps = self.cfg.train.warmup_steps
-        total_training_steps = self.max_iterations * self.cfg.train.max_epochs
+        warmup_steps = self.cfg.biencoder.warmup_steps
+        total_training_steps = self.max_iterations * self.cfg.biencoder.max_epochs
 
         def lr_lambda(current_step):
-            if current_step < self.cfg.train.warmup_steps:
+            if current_step < warmup_steps:
                 return float(current_step) / float(max(1, warmup_steps))
             return max(
                 1e-7,
@@ -67,11 +69,19 @@ class BiEncoder(pl.LightningModule):
         return LambdaLR(optimizer, lr_lambda)
 
     def configure_optimizers(self):
+        no_decay = ["bias", "LayerNorm.weight"]
+
         parameters = [
-            {'params': self.question_model.parameters()},
-            {'params': self.context_model.parameters()},
+            {
+                "params":       [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
+                "weight_decay": self.cfg.biencoder.weight_decay,
+            },
+            {
+                "params":       [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
+                "weight_decay": 0.0,
+            },
         ]
-        optimizer = AdamW(parameters, lr=self.cfg.train.learning_rate, eps=self.cfg.train.adam_eps)
+        optimizer = AdamW(parameters, lr=self.cfg.biencoder.learning_rate, eps=self.cfg.biencoder.adam_eps)
         scheduler = self.configure_scheduler(optimizer)
         return [optimizer], [scheduler]
 
@@ -109,12 +119,22 @@ class BiEncoder(pl.LightningModule):
         return loss
 
     def training_step(self, batch, batch_idx):
+        start = time.time()
+
         loss = self._shared_step(batch, batch_idx)
         self.train_total_loss += loss.item()
+
+        loss.backward()
+        self.optimizers().step()
+        self.lr_schedulers().step()
+        self.zero_grad()
+
+        end = time.time()
 
         self.log('train_loss', loss)
         self.log('train_total_loss', self.train_total_loss)
         self.log('global_step', float(self.global_step))
+        self.log('train_step_time', end - start)
 
         return loss
 
@@ -137,4 +157,4 @@ class BiEncoder(pl.LightningModule):
         return loss
 
     def on_after_backward(self) -> None:
-        torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.train.max_grad_norm)
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)

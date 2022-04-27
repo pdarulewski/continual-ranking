@@ -13,7 +13,7 @@ from continual_ranking.continual_learning.continual_trainer import ContinualTrai
 from continual_ranking.experiments.experiment import Experiment
 
 
-class ExperimentRunner(Experiment):
+class Baseline(Experiment):
 
     def __init__(
             self,
