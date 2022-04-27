@@ -3,7 +3,6 @@ from collections import namedtuple
 
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import transforms
 
 from continual_ranking.dpr.data.tensorizer import Tensorizer
 
@@ -37,9 +36,7 @@ class TrainingDataset(Dataset):
 
     def __init__(self, file: str):
         self.data = read_json_file(file)
-        self.transform = transforms.Compose([
-            Tokenize()
-        ])
+        self.tokenizer = Tokenize()
 
     def __len__(self):
         return len(self.data)
@@ -52,8 +49,7 @@ class TrainingDataset(Dataset):
             json_sample['negative_ctxs']
         )
 
-        if self.transform:
-            sample = self.transform(sample)
+        sample = self.tokenizer(sample)
 
         return sample
 
