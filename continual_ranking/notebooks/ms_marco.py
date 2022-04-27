@@ -55,7 +55,7 @@ def wiki_parsed():
 
     df.columns = ['question', 'positive_ctxs', 'negative_ctxs']
 
-    embeddings = df.head(5).copy(True)
+    embeddings = df.copy(True)
 
     train, dev, test = np.split(df.sample(frac=1, random_state=42), [int(.6 * len(df)), int(.8 * len(df))])
 

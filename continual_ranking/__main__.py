@@ -1,39 +1,49 @@
+import math
+import os
+
 import hydra
-from pytorch_lightning import seed_everything
+import torch.cuda
+import wandb
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.loggers import WandbLogger
 
-from continual_ranking.config.configs import BaseConfig
-from continual_ranking.config.paths import CONFIG_DIR
-from continual_ranking.experiments.avalanche_baseline import AvalancheBaseline
-from continual_ranking.experiments.experiment_runner import ExperimentRunner
-
-
-@hydra.main(config_path=CONFIG_DIR, config_name='config')
-def main(cfg: BaseConfig):
-    seed_everything(42)
-
-    if cfg.baseline:
-        experiment = AvalancheBaseline(
-            model=cfg.model,
-            datamodule=cfg.datamodule,
-            strategies=cfg.strategies,
-            project_name=cfg.project_name,
-            max_epochs=cfg.max_epochs,
-            cfg=cfg
-        )
-
-        experiment.execute()
-
-    else:
-        experiment = ExperimentRunner(
-            model=cfg.model,
-            datamodule=cfg.datamodule,
-            strategies=cfg.strategies,
-            project_name=cfg.project_name,
-            max_epochs=cfg.max_epochs,
-            cfg=cfg
-        )
-        experiment.execute()
+from continual_ranking.dpr.data.data_module import DataModule
+from continual_ranking.dpr.models.biencoder import BiEncoder
 
 
-if __name__ == '__main__':
+@hydra.main(config_path="../../config", config_name='train')
+def main(cfg: DictConfig):
+    seed_everything(42, workers=True)
+
+    accelerator = 'gpu' if torch.cuda.is_available() else 'cpu'
+
+    wandb.login(key=os.getenv('WANDB_KEY'))
+
+    logger = WandbLogger(
+        project='test_dpr',
+    )
+
+    wandb.init()
+    wandb.log(OmegaConf.to_container(cfg))
+
+    trainer = Trainer(
+        max_epochs=cfg.train.max_epochs,
+        accelerator=accelerator,
+        gpus=-1 if accelerator == 'gpu' else 0,
+        deterministic=True,
+        auto_lr_find=True,
+        log_every_n_steps=1,
+        logger=[logger]
+    )
+
+    data_module = DataModule(cfg)
+    data_module.setup()
+    model = BiEncoder(cfg, math.ceil(len(data_module.train_set) / cfg.train.batch_size))
+
+    data_module = DataModule(cfg)
+    trainer.fit(model, datamodule=data_module)
+
+
+if __name__ == "__main__":
     main()
