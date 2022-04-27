@@ -40,10 +40,14 @@ class BiEncoder(pl.LightningModule):
             batch.question_attn_mask,
         )
 
+        context_ids = torch.cat([ctx for ctx in batch.context_ids], dim=0)
+        ctx_segments = torch.cat([ctx for ctx in batch.ctx_segments], dim=0)
+        ctx_attn_mask = torch.cat([ctx for ctx in batch.ctx_attn_mask], dim=0)
+
         ctx_pooled_out = self.context_model.forward(
-            batch.context_ids,
-            batch.ctx_segments,
-            batch.ctx_attn_mask
+            context_ids,
+            ctx_segments,
+            ctx_attn_mask
         )
 
         return q_pooled_out, ctx_pooled_out
@@ -71,7 +75,7 @@ class BiEncoder(pl.LightningModule):
     def calculate_loss(
             q_vectors: Tensor,
             ctx_vectors: Tensor,
-            positive_idx_per_question: list,
+            positive_ctx_indices: list,
     ):
         scores = dot_product(q_vectors, ctx_vectors)
 
@@ -83,18 +87,19 @@ class BiEncoder(pl.LightningModule):
 
         loss = F.nll_loss(
             softmax_scores,
-            torch.tensor(positive_idx_per_question).to(softmax_scores.device),
-            reduction="mean",
+            torch.tensor(positive_ctx_indices).to(softmax_scores.device),
+            reduction='mean',
         )
 
         return loss
 
     def _shared_step(self, batch, batch_idx):
         q_pooled_out, ctx_pooled_out = self.forward(batch)
+        positive_ctx_indices = [0, 2] if ctx_pooled_out.shape[0] == 4 else [0]
         loss = self.calculate_loss(
             q_pooled_out,
             ctx_pooled_out,
-            batch.is_positive,
+            positive_ctx_indices,
         )
 
         return loss
@@ -107,6 +112,8 @@ class BiEncoder(pl.LightningModule):
         self.log('train_total_loss', self.train_total_loss)
         self.log('global_step', float(self.global_step))
 
+        return loss
+
     def validation_step(self, batch, batch_idx):
         loss = self._shared_step(batch, batch_idx)
         self.val_total_loss += loss.item()
@@ -114,12 +121,16 @@ class BiEncoder(pl.LightningModule):
         self.log('val_loss', loss)
         self.log('val_total_loss', self.val_total_loss)
 
+        return loss
+
     def test_step(self, batch, batch_idx):
         loss = self._shared_step(batch, batch_idx)
         self.test_total_loss += loss.item()
 
         self.log('test_loss', loss)
         self.log('test_total_loss', self.test_total_loss)
+
+        return loss
 
     def on_after_backward(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.train.max_grad_norm)

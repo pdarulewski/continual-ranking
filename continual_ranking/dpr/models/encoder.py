@@ -28,4 +28,6 @@ class Encoder(BertModel):
             attention_mask=attention_mask,
         )
 
-        return out.last_hidden_state
+        pooled_output = out.last_hidden_state[:, 0, :]
+
+        return pooled_output

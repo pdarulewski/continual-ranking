@@ -53,48 +53,44 @@ def wiki_parsed():
         sep='\t'
     )
 
+    df.columns = ['question', 'positive_ctxs', 'negative_ctxs']
+
     embeddings = df.head(5).copy(True)
 
-    df.columns = ['question', 'positive_ctxs', 'negative_ctxs']
     train, dev, test = np.split(df.sample(frac=1, random_state=42), [int(.6 * len(df)), int(.8 * len(df))])
 
     for frame in (train, dev):
         frame['positive_ctxs'] = frame['positive_ctxs'].apply(
-            lambda x: [{'text': x}]
+            lambda x: [x]
         )
         frame['negative_ctxs'] = frame['negative_ctxs'].apply(
-            lambda x: [{'text': x}]
+            lambda x: [x]
         )
 
     train.head(5).to_json(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'wiki_train.json'),
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'wiki_train5.json'),
         orient='records'
     )
 
     dev.head(5).to_json(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'wiki_dev.json'),
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'wiki_dev5.json'),
         orient='records'
     )
 
     test = test[['question', 'positive_ctxs']]
-    test.columns = ['question', 'answer']
-    test['answer'] = test['answer'].apply(
+    test['positive_ctxs'] = test['positive_ctxs'].apply(
         lambda x: [x]
     )
 
-    test.to_csv(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'wiki_test.tsv'),
-        sep='\t', header=None, index=False
+    test.head(5).to_json(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'wiki_test5.json'),
+        orient='records'
     )
 
-    embeddings = embeddings[['query', 'positive_passage']]
-    embeddings = embeddings.reset_index()
-    embeddings.columns = ['id', 'title', 'text']
-    embeddings = embeddings[['id', 'text', 'title']]
-    embeddings.head(5).to_csv(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'embeddings.tsv'),
-        sep='\t',
-        index=False
+    embeddings = embeddings[['question', 'positive_ctxs']]
+    embeddings.head(5).to_json(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'embeddings5.json'),
+        orient='records'
     )
 
 

@@ -67,9 +67,10 @@ class Tokenize:
         question_segments = torch.zeros_like(question_ids)
         question_attn_mask = self.tensorizer.get_attn_mask(question_ids)
 
-        context_ids = torch.Tensor([
+        context_ids = [
             self.tensorizer.text_to_tensor(ctx) for ctx in sample.positive_passages + sample.negative_passages
-        ])
+        ]
+        context_ids = torch.cat([ctx.view(1, -1) for ctx in context_ids], dim=0)
         ctx_segments = torch.zeros_like(context_ids)
         ctx_attn_mask = self.tensorizer.get_attn_mask(context_ids)
 

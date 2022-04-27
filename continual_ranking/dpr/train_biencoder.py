@@ -1,9 +1,12 @@
 import math
+import os
 
 import hydra
 import torch.cuda
-from omegaconf import DictConfig
+import wandb
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.loggers import WandbLogger
 
 from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.models.biencoder import BiEncoder
@@ -15,6 +18,15 @@ def main(cfg: DictConfig):
 
     accelerator = 'gpu' if torch.cuda.is_available() else 'cpu'
 
+    wandb.login(key=os.getenv('WANDB_KEY'))
+
+    logger = WandbLogger(
+        project='test_dpr',
+    )
+
+    wandb.init()
+    wandb.log(OmegaConf.to_container(cfg))
+
     trainer = Trainer(
         max_epochs=cfg.train.max_epochs,
         accelerator=accelerator,
@@ -22,6 +34,7 @@ def main(cfg: DictConfig):
         deterministic=True,
         auto_lr_find=True,
         log_every_n_steps=1,
+        logger=[logger]
     )
 
     data_module = DataModule(cfg)

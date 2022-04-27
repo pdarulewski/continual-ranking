@@ -19,7 +19,6 @@ class Tensorizer:
     def text_to_tensor(
             self,
             text: str,
-            title: str = None,
             add_special_tokens: bool = True,
             apply_max_len: bool = True,
     ):
