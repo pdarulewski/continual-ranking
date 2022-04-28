@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 
@@ -11,6 +12,8 @@ from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.models.biencoder import BiEncoder
 from continual_ranking.experiments.experiment import Experiment
 
+logger = logging.getLogger(__name__)
+
 
 class Baseline(Experiment):
 
@@ -19,6 +22,8 @@ class Baseline(Experiment):
         self._epochs_completed = 0
 
     def prepare_dataloaders(self) -> None:
+        logger.info('Setting up dataloaders')
+
         self.datamodule = DataModule(self.cfg)
 
         self.datamodule.prepare_data()
@@ -28,10 +33,11 @@ class Baseline(Experiment):
         self.val_dataloader = self.datamodule.val_dataloader()
         self.test_dataloader = self.datamodule.test_dataloader()
 
-    def setup_loggers(self):
+    def setup_loggers(self) -> None:
+        logger.info('Setting up wandb logger')
         wandb.login(key=os.getenv('WANDB_KEY'))
 
-        logger = WandbLogger(
+        wandb_logger = WandbLogger(
             name=self.cfg.experiment_name,
             project=self.cfg.project_name,
         )
@@ -39,12 +45,14 @@ class Baseline(Experiment):
         wandb.init()
         wandb.log(OmegaConf.to_container(self.cfg))
 
-        self.loggers = [logger]
+        self.loggers = [wandb_logger]
 
     def setup_model(self) -> None:
+        logger.info('Setting up model')
         self.model = BiEncoder(self.cfg, math.ceil(self.datamodule.train_set_length / self.cfg.biencoder.batch_size))
 
     def setup_callbacks(self) -> None:
+        logger.info('Setting up callbacks')
         filename = self.cfg.experiment_name
         self.callbacks = [
             ModelCheckpoint(
@@ -55,10 +63,12 @@ class Baseline(Experiment):
                 patience=3,
                 min_delta=0.01,
                 mode='min',
+                verbose=True
             ),
         ]
 
     def setup_trainer(self) -> None:
+        logger.info('Setting up trainer')
         self.trainer = Trainer(
             max_epochs=self.cfg.biencoder.max_epochs,
             accelerator=self.cfg.device,
@@ -75,6 +85,9 @@ class Baseline(Experiment):
 
     def run_training(self):
         for train_dataloader, val_dataloader in zip(self.train_dataloader, self.val_dataloader):
+            logger.info(f'Training dataloader size: {len(train_dataloader)}')
+            logger.info(f'Validation dataloader size: {len(val_dataloader)}')
+
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
 
         # self.trainer.test(self.model, self.test_dataloader)
