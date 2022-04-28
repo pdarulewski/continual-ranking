@@ -121,7 +121,7 @@ class BiEncoder(pl.LightningModule):
 
         self.manual_backward(loss)
         optimizers.step()
-        self.scheduler.step()
+        # self.scheduler.step()
 
         end = time.time()
 
