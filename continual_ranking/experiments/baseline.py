@@ -1,60 +1,38 @@
-import itertools
+import math
 import os
 
 import wandb
-from omegaconf import OmegaConf
-from pytorch_lightning.callbacks import EarlyStopping
+from omegaconf import OmegaConf, DictConfig
+from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 
-from continual_ranking.config.configs import DataModule, BaseConfig
-from continual_ranking.config.dicts import STRATEGIES, MODELS, DATA_MODULES
-from continual_ranking.config.paths import LOG_DIR
-from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
+from continual_ranking.dpr.data.data_module import DataModule
+from continual_ranking.dpr.models.biencoder import BiEncoder
 from continual_ranking.experiments.experiment import Experiment
 
 
 class Baseline(Experiment):
 
-    def __init__(
-            self,
-            model: str,
-            datamodule: DataModule,
-            strategies: dict,
-            project_name: str = None,
-            max_epochs: int = 1,
-            cfg: BaseConfig = None
-    ):
-        super().__init__(
-            model=model,
-            datamodule=datamodule,
-            strategies=strategies,
-            project_name=project_name,
-            max_epochs=max_epochs,
-            cfg=cfg
-        )
-
+    def __init__(self, cfg: DictConfig):
+        super().__init__(cfg=cfg)
         self._epochs_completed = 0
 
     def prepare_dataloaders(self) -> None:
-        datamodule = DATA_MODULES[self.datamodule_conf.name]
-        self.datamodule = datamodule(**self.datamodule_conf.params)
+        self.datamodule = DataModule(self.cfg)
+
         self.datamodule.prepare_data()
         self.datamodule.setup()
 
         self.train_dataloader = self.datamodule.train_dataloader()
-        self.test_dataloader = self.datamodule.test_dataloader()
-
         self.val_dataloader = self.datamodule.val_dataloader()
-
-        if not self.val_dataloader:
-            self.val_dataloader = [None]
+        self.test_dataloader = self.datamodule.test_dataloader()
 
     def setup_loggers(self):
         wandb.login(key=os.getenv('WANDB_KEY'))
 
         logger = WandbLogger(
-            project=self.project_name,
-            save_dir=LOG_DIR,
+            name=self.cfg.experiment_name,
+            project=self.cfg.project_name,
         )
 
         wandb.init()
@@ -62,38 +40,25 @@ class Baseline(Experiment):
 
         self.loggers = [logger]
 
-    def setup_strategies(self) -> None:
-        for key, value in self.strategies_conf.items():
-            strategy = STRATEGIES[key](**value)
-            self.callbacks.append(strategy)
-
-        early_stopping = EarlyStopping(
-            monitor='val_accuracy', min_delta=0.00, patience=3, verbose=False, mode='max')
-
-        self.callbacks.append(early_stopping)
-
     def setup_model(self) -> None:
-        self.model = MODELS[self.model_name]()
+        self.model = BiEncoder(self.cfg, math.ceil(self.datamodule.train_set_length / self.cfg.biencoder.batch_size))
 
     def setup_trainer(self) -> None:
-        self.trainer = ContinualTrainer(
-            logger=self.loggers,
-            max_epochs=self._epochs_completed + self.max_epochs,
+        self.trainer = Trainer(
+            max_epochs=self.cfg.biencoder.max_epochs,
+            accelerator=self.cfg.device,
+            gpus=-1 if self.cfg.device == 'gpu' else 0,
             deterministic=True,
-            callbacks=self.callbacks,
+            auto_lr_find=True,
             log_every_n_steps=1,
+            logger=self.loggers
         )
 
-    def run_training(self):
-        for train_dataloader, val_dataloader in itertools.zip_longest(
-                self.train_dataloader, self.val_dataloader, fillvalue=self.val_dataloader
-        ):
-            self.trainer.fit_loop.max_epochs = self._epochs_completed + self.max_epochs
-            self.trainer.fit_loop.current_epoch = self._epochs_completed
+    def setup_strategies(self) -> None:
+        pass
 
+    def run_training(self):
+        for train_dataloader, val_dataloader in zip(self.train_dataloader, self.val_dataloader):
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
 
-            self._epochs_completed = self.trainer.current_epoch + 1
-            self.trainer.task_id += 1
-
-        self.trainer.test(self.model, self.test_dataloader)
+        # self.trainer.test(self.model, self.test_dataloader)

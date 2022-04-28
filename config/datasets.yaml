@@ -3,3 +3,5 @@ train: data/MSMARCO/passages/train.json
 val: data/MSMARCO/passages/eval.json
 test: data/MSMARCO/passages/test.json
 embeddings: data/MSMARCO/passages/embeddings.json
+
+split_size: 0.2

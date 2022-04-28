@@ -1,4 +1,3 @@
-import json
 from collections import namedtuple
 
 import torch
@@ -26,16 +25,10 @@ TokenizedTrainingSample = namedtuple(
 )
 
 
-def read_json_file(path: str) -> dict:
-    with open(path, mode='r') as f:
-        data = json.load(f)
-    return data
-
-
 class TrainingDataset(Dataset):
 
-    def __init__(self, file: str):
-        self.data = read_json_file(file)
+    def __init__(self, data: dict):
+        self.data = data
         self.tokenizer = Tokenize()
 
     def __len__(self):
