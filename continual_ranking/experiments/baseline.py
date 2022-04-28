@@ -84,7 +84,7 @@ class Baseline(Experiment):
 
     def run_training(self):
         wandb.alert(
-            title=f'Training for {self.cfg.baseline_25} started!',
+            title=f'Training for {self.cfg.experiment_name} started!',
             text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
         )
         for index, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
