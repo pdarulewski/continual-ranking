@@ -83,7 +83,11 @@ class Baseline(Experiment):
         pass
 
     def run_training(self):
-        for train_dataloader, val_dataloader in zip(self.train_dataloader, self.val_dataloader):
+        wandb.alert(
+            title=f'Training for {self.cfg.baseline_25} started!',
+            text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
+        )
+        for index, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
             logger.info(f'Training dataloader size: {len(train_dataloader)}')
             logger.info(f'Validation dataloader size: {len(val_dataloader)}')
 
