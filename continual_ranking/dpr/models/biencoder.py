@@ -132,7 +132,6 @@ class BiEncoder(pl.LightningModule):
         end = time.time()
 
         self.log('train_loss', loss)
-        self.log('train_total_loss', self.train_total_loss)
         self.log('global_step', float(self.global_step))
         self.log('train_step_time', end - start)
 
@@ -143,7 +142,6 @@ class BiEncoder(pl.LightningModule):
         self.val_total_loss += loss.item()
 
         self.log('val_loss', loss)
-        self.log('val_total_loss', self.val_total_loss)
 
         return loss
 
