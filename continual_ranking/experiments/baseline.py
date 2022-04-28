@@ -75,7 +75,6 @@ class Baseline(Experiment):
             gpus=-1 if self.cfg.device == 'gpu' else 0,
             deterministic=True,
             auto_lr_find=True,
-            log_every_n_steps=10,
             logger=self.loggers,
             callbacks=self.callbacks
         )
