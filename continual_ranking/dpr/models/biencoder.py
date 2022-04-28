@@ -58,7 +58,7 @@ class BiEncoder(pl.LightningModule):
 
     def configure_scheduler(self, optimizer):
         warmup_steps = self.cfg.biencoder.warmup_steps
-        total_training_steps = self.max_iterations * self.cfg.biencoder.max_epochs
+        total_training_steps = self.max_iterations * 30
 
         def lr_lambda(current_step):
             if current_step < warmup_steps:
@@ -71,9 +71,16 @@ class BiEncoder(pl.LightningModule):
         self.scheduler = LambdaLR(optimizer, lr_lambda)
 
     def configure_optimizers(self):
+        no_decay = ["bias", "LayerNorm.weight"]
         parameters = [
-            {'params': self.question_model.parameters()},
-            {'params': self.context_model.parameters()},
+            {
+                "params":       [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
+                "weight_decay": self.cfg.biencoder.weight_decay,
+            },
+            {
+                "params":       [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
+                "weight_decay": 0.0,
+            },
         ]
         optimizer = AdamW(parameters, lr=self.cfg.biencoder.learning_rate, eps=self.cfg.biencoder.adam_eps)
         self.configure_scheduler(optimizer)
@@ -121,7 +128,7 @@ class BiEncoder(pl.LightningModule):
 
         self.manual_backward(loss)
         optimizers.step()
-        # self.scheduler.step()
+        self.scheduler.step()
 
         end = time.time()
 
