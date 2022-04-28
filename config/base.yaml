@@ -6,8 +6,9 @@ defaults:
 seed: 42
 
 project_name: continual_ranking
-experiment_name: baseline_25
 device: gpu
+
+experiment_name: baseline_25
 
 run_type:
   baseline: true

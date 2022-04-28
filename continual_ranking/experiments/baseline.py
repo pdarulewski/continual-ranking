@@ -4,6 +4,7 @@ import os
 import wandb
 from omegaconf import OmegaConf, DictConfig
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from continual_ranking.dpr.data.data_module import DataModule
@@ -43,6 +44,20 @@ class Baseline(Experiment):
     def setup_model(self) -> None:
         self.model = BiEncoder(self.cfg, math.ceil(self.datamodule.train_set_length / self.cfg.biencoder.batch_size))
 
+    def setup_callbacks(self) -> None:
+        filename = self.cfg.experiment_name
+        self.callbacks = [
+            ModelCheckpoint(
+                filename=filename + '-{epoch:02d}-{val_loss:.2f}',
+            ),
+            EarlyStopping(
+                monitor='val_loss',
+                patience=3,
+                min_delta=0.01,
+                mode='min',
+            ),
+        ]
+
     def setup_trainer(self) -> None:
         self.trainer = Trainer(
             max_epochs=self.cfg.biencoder.max_epochs,
@@ -51,7 +66,8 @@ class Baseline(Experiment):
             deterministic=True,
             auto_lr_find=True,
             log_every_n_steps=1,
-            logger=self.loggers
+            logger=self.loggers,
+            callbacks=self.callbacks
         )
 
     def setup_strategies(self) -> None:

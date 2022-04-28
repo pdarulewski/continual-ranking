@@ -36,7 +36,12 @@ class Experiment(ABC):
 
     @abstractmethod
     def setup_strategies(self) -> None:
-        """Prepare and assign the CL strategies"""
+        """Prepare and assign the CL strategies, this should be assigned
+        to other callbacks"""
+
+    @abstractmethod
+    def setup_callbacks(self) -> None:
+        """Pass callbacks"""
 
     @abstractmethod
     def setup_model(self) -> None:
@@ -51,6 +56,7 @@ class Experiment(ABC):
         self.prepare_dataloaders()
         self.setup_model()
         self.setup_strategies()
+        self.setup_callbacks()
         self.setup_trainer()
 
     @abstractmethod
