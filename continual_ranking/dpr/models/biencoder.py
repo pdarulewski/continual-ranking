@@ -27,12 +27,8 @@ class BiEncoder(pl.LightningModule):
         self.question_model: Encoder = Encoder.init_encoder()
         self.context_model: Encoder = Encoder.init_encoder()
 
-        self.train_total_loss = 0
-        self.val_total_loss = 0
-        self.test_total_loss = 0
-
         self.max_iterations = max_iterations
-
+        self.scheduler = None
         self.automatic_optimization = False
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
@@ -66,24 +62,16 @@ class BiEncoder(pl.LightningModule):
                 float(total_training_steps - current_step) / float(max(1, total_training_steps - warmup_steps)),
             )
 
-        return LambdaLR(optimizer, lr_lambda)
+        self.scheduler = LambdaLR(optimizer, lr_lambda)
 
     def configure_optimizers(self):
-        no_decay = ["bias", "LayerNorm.weight"]
-
         parameters = [
-            {
-                "params":       [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
-                "weight_decay": self.cfg.biencoder.weight_decay,
-            },
-            {
-                "params":       [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
-                "weight_decay": 0.0,
-            },
+            {'params': self.question_model.parameters()},
+            {'params': self.context_model.parameters()},
         ]
         optimizer = AdamW(parameters, lr=self.cfg.biencoder.learning_rate, eps=self.cfg.biencoder.adam_eps)
-        scheduler = self.configure_scheduler(optimizer)
-        return [optimizer], [scheduler]
+        self.configure_scheduler(optimizer)
+        return optimizer
 
     @staticmethod
     def calculate_loss(
@@ -122,11 +110,10 @@ class BiEncoder(pl.LightningModule):
         start = time.time()
 
         loss = self._shared_step(batch, batch_idx)
-        self.train_total_loss += loss.item()
 
         loss.backward()
         self.optimizers().step()
-        self.lr_schedulers().step()
+        self.scheduler.step()
         self.zero_grad()
 
         end = time.time()
@@ -139,7 +126,6 @@ class BiEncoder(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         loss = self._shared_step(batch, batch_idx)
-        self.val_total_loss += loss.item()
 
         self.log('val_loss', loss)
 

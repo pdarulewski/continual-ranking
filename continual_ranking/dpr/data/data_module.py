@@ -16,6 +16,11 @@ def read_json_file(path: str) -> list:
     return data
 
 
+def save_json_file(data: list, path: str) -> None:
+    with open(path, 'w') as f:
+        json.dump(data, f)
+
+
 class DataModule(pl.LightningDataModule):
     def __init__(self, cfg):
         super().__init__()
@@ -77,7 +82,7 @@ class DataModule(pl.LightningDataModule):
     def val_dataloader(self):
         return [
             DataLoader(
-                eval_set, batch_size=self.cfg.biencoder.batch_size, num_workers=self.cfg.biencoder.num_workers
+                eval_set, batch_size=self.cfg.biencoder.eval_batch_size, num_workers=self.cfg.biencoder.num_workers
             ) for eval_set in self.eval_sets
         ]
 

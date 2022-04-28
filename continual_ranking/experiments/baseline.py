@@ -19,7 +19,6 @@ class Baseline(Experiment):
 
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg=cfg)
-        self._epochs_completed = 0
 
     def prepare_dataloaders(self) -> None:
         logger.info('Setting up dataloaders')
