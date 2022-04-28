@@ -95,7 +95,7 @@ class Baseline(Experiment):
             logger.info(val_data_len_msg)
 
             wandb.alert(
-                title=f'Experiment #{index} for {self.cfg.baseline_25} started!',
+                title=f'Experiment #{index} for {self.cfg.experiment_name} started!',
                 text=f'{train_data_len_msg}\n{val_data_len_msg}'
             )
 
