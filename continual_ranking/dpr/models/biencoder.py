@@ -18,18 +18,24 @@ def dot_product(q_vectors: Tensor, ctx_vectors: Tensor) -> Tensor:
     return torch.matmul(q_vectors, torch.transpose(ctx_vectors, 0, 1))
 
 
+positives_idx = {
+    4: [0, 2],
+    8: [0, 2, 4, 6],
+}
+
+
 class BiEncoder(pl.LightningModule):
 
     def __init__(self, cfg, max_iterations: int):
         super().__init__()
         self.cfg = cfg
+        self.automatic_optimization = False
 
         self.question_model: Encoder = Encoder.init_encoder()
         self.context_model: Encoder = Encoder.init_encoder()
 
         self.max_iterations = max_iterations
         self.scheduler = None
-        self.automatic_optimization = False
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
@@ -97,11 +103,10 @@ class BiEncoder(pl.LightningModule):
 
     def _shared_step(self, batch, batch_idx):
         q_pooled_out, ctx_pooled_out = self.forward(batch)
-        positive_ctx_indices = [0, 2] if ctx_pooled_out.shape[0] == 4 else [0]
         loss = self.calculate_loss(
             q_pooled_out,
             ctx_pooled_out,
-            positive_ctx_indices,
+            positives_idx[ctx_pooled_out.shape[0]],
         )
 
         return loss
@@ -109,12 +114,14 @@ class BiEncoder(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         start = time.time()
 
+        optimizers = self.optimizers()
+        optimizers.zero_grad()
+
         loss = self._shared_step(batch, batch_idx)
 
-        loss.backward()
-        self.optimizers().step()
+        self.manual_backward(loss)
+        optimizers.step()
         self.scheduler.step()
-        self.zero_grad()
 
         end = time.time()
 
@@ -133,10 +140,8 @@ class BiEncoder(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         loss = self._shared_step(batch, batch_idx)
-        self.test_total_loss += loss.item()
 
         self.log('test_loss', loss)
-        self.log('test_total_loss', self.test_total_loss)
 
         return loss
 
