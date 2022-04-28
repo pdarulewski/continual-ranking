@@ -88,8 +88,16 @@ class Baseline(Experiment):
             text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
         )
         for index, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
-            logger.info(f'Training dataloader size: {len(train_dataloader)}')
-            logger.info(f'Validation dataloader size: {len(val_dataloader)}')
+            train_data_len_msg = f'Training dataloader size: {len(train_dataloader)}'
+            val_data_len_msg = f'Validation dataloader size: {len(val_dataloader)}'
+
+            logger.info(train_data_len_msg)
+            logger.info(val_data_len_msg)
+
+            wandb.alert(
+                title=f'Experiment #{index} for {self.cfg.baseline_25} started!',
+                text=f'{train_data_len_msg}\n{val_data_len_msg}'
+            )
 
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
 
