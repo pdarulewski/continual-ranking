@@ -19,7 +19,7 @@ class Baseline(Experiment):
 
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg=cfg)
-        self.is_wandb_on = False
+        self.fast_dev_run = False
 
     def prepare_dataloaders(self) -> None:
         logger.info('Setting up dataloaders')
@@ -34,7 +34,7 @@ class Baseline(Experiment):
         self.test_dataloader = self.datamodule.test_dataloader()
 
     def setup_loggers(self) -> None:
-        if self.is_wandb_on:
+        if self.fast_dev_run:
             logger.info('Setting up wandb logger')
             wandb.login(key=os.getenv('WANDB_KEY'))
 
@@ -80,24 +80,25 @@ class Baseline(Experiment):
             auto_lr_find=True,
             # log_every_n_steps=1,
             logger=self.loggers,
-            callbacks=self.callbacks
+            callbacks=self.callbacks,
+            fast_dev_run=self.fast_dev_run
         )
 
     def setup_strategies(self) -> None:
         pass
 
     def run_training(self):
-        if self.is_wandb_on:
+        if self.fast_dev_run:
             wandb.alert(
                 title=f'Training for {self.cfg.experiment_name} started!',
                 text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
             )
 
         for index, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
-            train_length = train_dataloader.dataset
-            val_length = val_dataloader.dataset
-            train_data_len_msg = f'Training dataloader size: {len(train_length)}'
-            val_data_len_msg = f'Validation dataloader size: {len(val_length)}'
+            train_length = len(train_dataloader.dataset)
+            val_length = len(val_dataloader.dataset)
+            train_data_len_msg = f'Training dataloader size: {train_length}'
+            val_data_len_msg = f'Validation dataloader size: {val_length}'
 
             self.model.train_length = train_length
             self.model.val_length = val_length
@@ -105,7 +106,7 @@ class Baseline(Experiment):
             logger.info(train_data_len_msg)
             logger.info(val_data_len_msg)
 
-            if self.is_wandb_on:
+            if self.fast_dev_run:
                 wandb.alert(
                     title=f'Experiment #{index} for {self.cfg.experiment_name} started!',
                     text=f'{train_data_len_msg}\n{val_data_len_msg}'
