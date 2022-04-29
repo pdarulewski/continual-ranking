@@ -35,6 +35,8 @@ class Baseline(Experiment):
 
     def setup_loggers(self) -> None:
         if self.fast_dev_run:
+            self.loggers = []
+        else:
             logger.info('Setting up wandb logger')
             wandb.login(key=os.getenv('WANDB_KEY'))
 
@@ -47,8 +49,6 @@ class Baseline(Experiment):
             wandb.log(OmegaConf.to_container(self.cfg))
 
             self.loggers = [wandb_logger]
-        else:
-            self.loggers = []
 
     def setup_model(self) -> None:
         logger.info('Setting up model')
