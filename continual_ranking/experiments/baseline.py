@@ -88,7 +88,7 @@ class Baseline(Experiment):
         pass
 
     def run_training(self):
-        if self.fast_dev_run:
+        if not self.fast_dev_run:
             wandb.alert(
                 title=f'Training for {self.cfg.experiment_name} started!',
                 text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
@@ -106,7 +106,7 @@ class Baseline(Experiment):
             logger.info(train_data_len_msg)
             logger.info(val_data_len_msg)
 
-            if self.fast_dev_run:
+            if not self.fast_dev_run:
                 wandb.alert(
                     title=f'Experiment #{index} for {self.cfg.experiment_name} started!',
                     text=f'{train_data_len_msg}\n{val_data_len_msg}'
