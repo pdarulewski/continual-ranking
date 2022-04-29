@@ -19,6 +19,7 @@ class Baseline(Experiment):
 
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg=cfg)
+        self.is_wandb_on = False
 
     def prepare_dataloaders(self) -> None:
         logger.info('Setting up dataloaders')
@@ -33,18 +34,21 @@ class Baseline(Experiment):
         self.test_dataloader = self.datamodule.test_dataloader()
 
     def setup_loggers(self) -> None:
-        logger.info('Setting up wandb logger')
-        wandb.login(key=os.getenv('WANDB_KEY'))
+        if self.is_wandb_on:
+            logger.info('Setting up wandb logger')
+            wandb.login(key=os.getenv('WANDB_KEY'))
 
-        wandb_logger = WandbLogger(
-            name=self.cfg.experiment_name,
-            project=self.cfg.project_name,
-        )
+            wandb_logger = WandbLogger(
+                name=self.cfg.experiment_name,
+                project=self.cfg.project_name,
+            )
 
-        wandb.init()
-        wandb.log(OmegaConf.to_container(self.cfg))
+            wandb.init()
+            wandb.log(OmegaConf.to_container(self.cfg))
 
-        self.loggers = [wandb_logger]
+            self.loggers = [wandb_logger]
+        else:
+            self.loggers = []
 
     def setup_model(self) -> None:
         logger.info('Setting up model')
@@ -83,21 +87,29 @@ class Baseline(Experiment):
         pass
 
     def run_training(self):
-        wandb.alert(
-            title=f'Training for {self.cfg.experiment_name} started!',
-            text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
-        )
+        if self.is_wandb_on:
+            wandb.alert(
+                title=f'Training for {self.cfg.experiment_name} started!',
+                text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
+            )
+
         for index, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
-            train_data_len_msg = f'Training dataloader size: {len(train_dataloader)}'
-            val_data_len_msg = f'Validation dataloader size: {len(val_dataloader)}'
+            train_length = train_dataloader.dataset
+            val_length = val_dataloader.dataset
+            train_data_len_msg = f'Training dataloader size: {len(train_length)}'
+            val_data_len_msg = f'Validation dataloader size: {len(val_length)}'
+
+            self.model.train_length = train_length
+            self.model.val_length = val_length
 
             logger.info(train_data_len_msg)
             logger.info(val_data_len_msg)
 
-            wandb.alert(
-                title=f'Experiment #{index} for {self.cfg.experiment_name} started!',
-                text=f'{train_data_len_msg}\n{val_data_len_msg}'
-            )
+            if self.is_wandb_on:
+                wandb.alert(
+                    title=f'Experiment #{index} for {self.cfg.experiment_name} started!',
+                    text=f'{train_data_len_msg}\n{val_data_len_msg}'
+                )
 
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
 

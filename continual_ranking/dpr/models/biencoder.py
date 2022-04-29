@@ -37,6 +37,15 @@ class BiEncoder(pl.LightningModule):
         self.max_iterations = max_iterations
         self.scheduler = None
 
+        self.training_correct_predictions = 0
+        self.validation_correct_predictions = 0
+        self.test_correct_predictions = 0
+
+        self.epoch_training_loss = 0
+        self.rolling_training_loss = 0
+        self.train_length = 0
+        self.val_length = 0
+
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
             batch.question_ids,
@@ -106,17 +115,20 @@ class BiEncoder(pl.LightningModule):
             reduction='mean',
         )
 
-        return loss
+        max_score, max_idxs = torch.max(softmax_scores, 1)
+        correct_predictions = (max_idxs == torch.tensor(positive_ctx_indices).to(max_idxs.device)).sum()
+
+        return loss, correct_predictions.sum().item()
 
     def _shared_step(self, batch, batch_idx):
         q_pooled_out, ctx_pooled_out = self.forward(batch)
-        loss = self.calculate_loss(
+        loss, correct_predictions = self.calculate_loss(
             q_pooled_out,
             ctx_pooled_out,
             positives_idx[ctx_pooled_out.shape[0]],
         )
 
-        return loss
+        return loss, correct_predictions
 
     def training_step(self, batch, batch_idx):
         start = time.time()
@@ -124,7 +136,7 @@ class BiEncoder(pl.LightningModule):
         optimizers = self.optimizers()
         optimizers.zero_grad()
 
-        loss = self._shared_step(batch, batch_idx)
+        loss, correct_predictions = self._shared_step(batch, batch_idx)
 
         self.manual_backward(loss)
         optimizers.step()
@@ -132,25 +144,46 @@ class BiEncoder(pl.LightningModule):
 
         end = time.time()
 
+        self.training_correct_predictions += correct_predictions
+        self.epoch_training_loss += loss.item()
+
+        self.rolling_training_loss += self.epoch_training_loss
+
         self.log('train_loss', loss)
         self.log('global_step', float(self.global_step))
         self.log('train_step_time', end - start)
+        self.log('epoch_training_loss', self.epoch_training_loss)
+        if self.global_step % 500 == 0:
+            self.log('rolling_training_loss', self.rolling_training_loss)
+            self.rolling_training_loss = 0
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss = self._shared_step(batch, batch_idx)
+        loss, correct_predictions = self._shared_step(batch, batch_idx)
 
+        self.validation_correct_predictions += correct_predictions
         self.log('val_loss', loss)
 
         return loss
 
     def test_step(self, batch, batch_idx):
-        loss = self._shared_step(batch, batch_idx)
+        loss, correct_predictions = self._shared_step(batch, batch_idx)
 
         self.log('test_loss', loss)
+        self.test_correct_predictions += correct_predictions
 
         return loss
 
     def on_after_backward(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)
+
+    def on_epoch_end(self) -> None:
+        self.log('epoch_loss', self.epoch_training_loss)
+        self.epoch_training_loss = 0
+
+        self.log('epoch_train_accuracy', self.training_correct_predictions / self.train_length)
+        self.log('epoch_val_accuracy', self.validation_correct_predictions / self.val_length)
+
+        self.training_correct_predictions = 0
+        self.validation_correct_predictions = 0
