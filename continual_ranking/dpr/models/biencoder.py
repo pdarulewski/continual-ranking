@@ -18,12 +18,6 @@ def dot_product(q_vectors: Tensor, ctx_vectors: Tensor) -> Tensor:
     return torch.matmul(q_vectors, torch.transpose(ctx_vectors, 0, 1))
 
 
-positives_idx = {
-    4: [0, 2],
-    8: [0, 2, 4, 6],
-}
-
-
 class BiEncoder(pl.LightningModule):
 
     def __init__(self, cfg, max_iterations: int):
@@ -122,10 +116,13 @@ class BiEncoder(pl.LightningModule):
 
     def _shared_step(self, batch, batch_idx):
         q_pooled_out, ctx_pooled_out = self.forward(batch)
+
+        positives_idx = [x for x in range(ctx_pooled_out.shape[0]) if x % 2 == 0]
+
         loss, correct_predictions = self.calculate_loss(
             q_pooled_out,
             ctx_pooled_out,
-            positives_idx[ctx_pooled_out.shape[0]],
+            positives_idx,
         )
 
         return loss, correct_predictions
