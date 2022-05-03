@@ -36,9 +36,12 @@ class BiEncoder(pl.LightningModule):
         self.test_correct_predictions = 0
 
         self.epoch_training_loss = 0
+        self.epoch_validation_loss = 0
         self.rolling_training_loss = 0
         self.train_length = 0
+        self.train_length_met = 0
         self.val_length = 0
+        self.val_length_met = 0
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
@@ -115,6 +118,8 @@ class BiEncoder(pl.LightningModule):
         return loss, correct_predictions.sum().item()
 
     def _shared_step(self, batch, batch_idx):
+        self.log('global_step', float(self.global_step))
+
         q_pooled_out, ctx_pooled_out = self.forward(batch)
 
         positives_idx = [x for x in range(ctx_pooled_out.shape[0]) if x % (1 + self.cfg.negatives_amount) == 0]
@@ -141,26 +146,38 @@ class BiEncoder(pl.LightningModule):
 
         end = time.time()
 
-        self.training_correct_predictions += correct_predictions
         self.epoch_training_loss += loss.item()
 
+        self.training_correct_predictions += correct_predictions
         self.rolling_training_loss += self.epoch_training_loss
+        self.train_length_met += self.cfg.biencoder.batch_size
 
-        self.log('train_loss', loss)
-        self.log('global_step', float(self.global_step))
-        self.log('train_step_time', end - start)
-        self.log('epoch_training_loss', self.epoch_training_loss)
+        self.log('train_loss_step', loss)
+        self.log('train_time_step', end - start)
+        self.log('train_loss_roll', self.rolling_training_loss)
+        self.log('train_acc_step', correct_predictions / self.train_length_met)
+        self.log('train_acc_roll', self.training_correct_predictions / self.train_length_met)
+
         if self.global_step % 500 == 0:
-            self.log('rolling_training_loss', self.rolling_training_loss)
             self.rolling_training_loss = 0
 
         return loss
 
     def validation_step(self, batch, batch_idx):
+        start = time.time()
+
         loss, correct_predictions = self._shared_step(batch, batch_idx)
 
+        end = time.time()
+
+        self.epoch_validation_loss += loss.item()
         self.validation_correct_predictions += correct_predictions
-        self.log('val_loss', loss)
+        self.val_length_met += self.cfg.biencoder.eval_batch_size
+
+        self.log('val_loss', loss, on_step=True)
+        self.log('val_step_time', end - start, on_step=True)
+        self.log('val_acc_step', correct_predictions / self.val_length_met)
+        self.log('val_acc_roll', self.validation_correct_predictions / self.val_length_met)
 
         return loss
 
@@ -175,12 +192,20 @@ class BiEncoder(pl.LightningModule):
     def on_after_backward(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)
 
-    def on_epoch_end(self) -> None:
-        self.log('epoch_loss', self.epoch_training_loss)
+    def on_train_epoch_end(self) -> None:
+        self.log('train_loss_epoch', self.epoch_training_loss)
+        self.log('train_acc_epoch', self.training_correct_predictions / self.train_length)
+
+    def on_train_epoch_start(self) -> None:
+        self.training_correct_predictions = 0
+        self.train_length_met = 0
         self.epoch_training_loss = 0
 
-        self.log('epoch_train_accuracy', self.training_correct_predictions / self.train_length)
-        self.log('epoch_val_accuracy', self.validation_correct_predictions / self.val_length)
+    def on_validation_epoch_end(self) -> None:
+        self.log('val_loss_epoch', self.epoch_validation_loss)
+        self.log('val_acc_epoch', self.validation_correct_predictions / self.val_length)
 
-        self.training_correct_predictions = 0
+    def on_validation_epoch_start(self) -> None:
         self.validation_correct_predictions = 0
+        self.val_length_met = 0
+        self.epoch_validation_loss = 0

@@ -11,7 +11,7 @@ fast_dev_run: false
 
 experiment_name: baseline_25
 
-negatives_amount: 10
+negatives_amount: 1
 
 run_type:
   baseline: true

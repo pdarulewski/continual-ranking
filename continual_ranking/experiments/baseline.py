@@ -40,9 +40,10 @@ class Baseline(Experiment):
         wandb_logger = WandbLogger(
             name=self.cfg.experiment_name,
             project=self.cfg.project_name,
+            offline=self.fast_dev_run,
         )
 
-        wandb.init(mode='disabled' if self.fast_dev_run else 'online')
+        wandb.init()
         wandb.log(OmegaConf.to_container(self.cfg))
 
         self.loggers = [wandb_logger]
@@ -57,6 +58,9 @@ class Baseline(Experiment):
         self.callbacks = [
             ModelCheckpoint(
                 filename=filename + '-{epoch:02d}-{val_loss:.2f}',
+                save_top_k=2,
+                monitor='val_loss',
+                mode='min,,,,,,'
             ),
             EarlyStopping(
                 monitor='val_loss',
