@@ -60,7 +60,7 @@ class Baseline(Experiment):
                 filename=filename + '-{epoch:02d}-{val_loss:.2f}',
                 save_top_k=2,
                 monitor='val_loss',
-                mode='min,,,,,,'
+                mode='min'
             ),
             EarlyStopping(
                 monitor='val_loss',
