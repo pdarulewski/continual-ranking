@@ -117,7 +117,7 @@ class BiEncoder(pl.LightningModule):
     def _shared_step(self, batch, batch_idx):
         q_pooled_out, ctx_pooled_out = self.forward(batch)
 
-        positives_idx = [x for x in range(ctx_pooled_out.shape[0]) if x % 2 == 0]
+        positives_idx = [x for x in range(ctx_pooled_out.shape[0]) if x % (1 + self.cfg.negatives_amount) == 0]
 
         loss, correct_predictions = self.calculate_loss(
             q_pooled_out,

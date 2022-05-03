@@ -48,13 +48,13 @@ class DataModule(pl.LightningDataModule):
 
         if self.cfg.run_type.baseline:
             chunks = data[:chunk_sizes[-1]]
-            chunks = [TrainingDataset(chunks)]
+            chunks = [TrainingDataset(chunks, self.cfg.negatives_amount)]
 
         else:
             for i in range(len(chunk_sizes) - 1):
                 slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1]]
                 chunks.append(slice_)
-            chunks = [TrainingDataset(chunk) for chunk in chunks]
+            chunks = [TrainingDataset(chunk, self.cfg.negatives_amount) for chunk in chunks]
 
         return chunks
 

@@ -10,6 +10,8 @@ device: gpu
 
 experiment_name: baseline_25
 
+negatives_amount: 10
+
 run_type:
   baseline: true
   continual_learning: false
