@@ -9,6 +9,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from continual_ranking.dpr.data.data_module import DataModule
+from continual_ranking.dpr.data.file_handler import store_index
 from continual_ranking.dpr.models.biencoder import BiEncoder
 from continual_ranking.experiments.experiment import Experiment
 
@@ -31,6 +32,7 @@ class Baseline(Experiment):
 
         self.train_dataloader = self.datamodule.train_dataloader()
         self.val_dataloader = self.datamodule.val_dataloader()
+        self.index_dataloader = self.datamodule.index_dataloader()
         self.test_dataloader = self.datamodule.test_dataloader()
 
     def setup_loggers(self) -> None:
@@ -113,4 +115,20 @@ class Baseline(Experiment):
 
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
 
-        # self.trainer.test(self.model, self.test_dataloader)
+    def run_indexing(self):
+        wandb.alert(
+            title=f'Indexing for {self.cfg.experiment_name} started!',
+            text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
+        )
+
+        logger.info(f'Index dataloader size: {len(self.index_dataloader.dataset)}')
+        self.model.index_mode = True
+        self.trainer.test(self.model, self.index_dataloader)
+        self.model.index_mode = False
+
+        store_index(self.model.index, self.cfg.experiment_name)
+
+        wandb.alert(
+            title=f'Indexing finished!',
+            text=f'Indexed {len(self.index_dataloader.dataset)} samples'
+        )

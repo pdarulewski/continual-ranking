@@ -20,6 +20,7 @@ class Experiment(ABC):
 
         self.train_dataloader: Dataloaders = None
         self.val_dataloader: Dataloaders = None
+        self.index_dataloader: Dataloaders = None
         self.test_dataloader: Dataloaders = None
 
         self.callbacks: List[pl.Callback] = []

@@ -1,5 +1,6 @@
 import random
 from collections import namedtuple
+from typing import List
 
 import torch
 from torch.utils.data import Dataset
@@ -28,10 +29,10 @@ TokenizedTrainingSample = namedtuple(
 
 class TrainingDataset(Dataset):
 
-    def __init__(self, data: dict, negatives_amount: int):
+    def __init__(self, data: List[dict], negatives_amount: int):
         self.data = data
         self.negatives_amount = negatives_amount
-        self.tokenizer = Tokenize()
+        self.tokenizer = TrainingTokenizer()
 
     def __len__(self):
         return len(self.data)
@@ -61,7 +62,7 @@ class TrainingDataset(Dataset):
         return sample
 
 
-class Tokenize:
+class TrainingTokenizer:
     def __init__(self):
         self.tensorizer = Tensorizer()
 

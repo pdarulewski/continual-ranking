@@ -1,4 +1,3 @@
-import json
 import os
 import random
 from typing import Optional
@@ -7,18 +6,9 @@ import hydra
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
+from continual_ranking.dpr.data.file_handler import read_json_file
+from continual_ranking.dpr.data.index_dataset import IndexDataset
 from continual_ranking.dpr.data.training_dataset import TrainingDataset
-
-
-def read_json_file(path: str) -> list:
-    with open(path, mode='r') as f:
-        data = json.load(f)
-    return data
-
-
-def save_json_file(data: list, path: str) -> None:
-    with open(path, 'w') as f:
-        json.dump(data, f)
 
 
 class DataModule(pl.LightningDataModule):
@@ -28,10 +18,12 @@ class DataModule(pl.LightningDataModule):
 
         self.train_set_path = os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.train)
         self.eval_set_path = os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.val)
-        self.test_set_path = None
+        self.index_set_path = os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.index)
+        self.test_set_path = os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.test)
 
         self.train_sets = None
         self.eval_sets = None
+        self.index_set = None
         self.test_sets = None
 
         self.train_set_length = 0
@@ -70,7 +62,7 @@ class DataModule(pl.LightningDataModule):
         else:
             self.train_set_length = sum([len(dataset) for dataset in self.train_sets])
 
-        # self.test_sets = self._make_set_splits(self.test_set_path)
+        self.index_set = IndexDataset(read_json_file(self.index_set_path))
 
     def train_dataloader(self):
         return [
@@ -85,6 +77,14 @@ class DataModule(pl.LightningDataModule):
                 eval_set, batch_size=self.cfg.biencoder.eval_batch_size, num_workers=self.cfg.biencoder.num_workers
             ) for eval_set in self.eval_sets
         ]
+
+    def index_dataloader(self):
+        return DataLoader(
+            self.index_set, batch_size=self.cfg.biencoder.index_batch_size, num_workers=self.cfg.biencoder.num_workers
+        )
+
+    def _test_dataloader(self):
+        pass
 
     def test_dataloader(self):
         pass

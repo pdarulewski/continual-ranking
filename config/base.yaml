@@ -2,6 +2,7 @@ defaults:
   - _self_
   - datasets
   - biencoder
+  - indexing
 
 seed: 42
 
