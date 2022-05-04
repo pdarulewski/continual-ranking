@@ -38,6 +38,7 @@ class BiEncoder(pl.LightningModule):
         self.epoch_training_loss = 0
         self.epoch_validation_loss = 0
         self.rolling_training_loss = 0
+        self.rolling_validation_loss = 0
         self.train_length = 0
         self.train_length_met = 0
         self.val_length = 0
@@ -147,16 +148,17 @@ class BiEncoder(pl.LightningModule):
         end = time.time()
 
         self.epoch_training_loss += loss.item()
+        self.rolling_training_loss += loss.item()
 
         self.training_correct_predictions += correct_predictions
-        self.rolling_training_loss += self.epoch_training_loss
         self.train_length_met += self.cfg.biencoder.batch_size
 
         self.log('train_loss_step', loss)
-        self.log('train_time_step', end - start)
         self.log('train_loss_roll', self.rolling_training_loss)
-        self.log('train_acc_step', correct_predictions / self.train_length_met)
+        self.log('train_acc_step', correct_predictions / self.cfg.biencoder.batch_size)
         self.log('train_acc_roll', self.training_correct_predictions / self.train_length_met)
+
+        self.log('train_time_step', end - start)
 
         if self.global_step % 500 == 0:
             self.rolling_training_loss = 0
@@ -171,13 +173,19 @@ class BiEncoder(pl.LightningModule):
         end = time.time()
 
         self.epoch_validation_loss += loss.item()
+        self.rolling_validation_loss += loss.item()
         self.validation_correct_predictions += correct_predictions
         self.val_length_met += self.cfg.biencoder.eval_batch_size
 
         self.log('val_loss', loss, on_step=True)
-        self.log('val_step_time', end - start, on_step=True)
-        self.log('val_acc_step', correct_predictions / self.val_length_met)
+        self.log('val_loss_roll', self.rolling_validation_loss)
+        self.log('val_acc_step', correct_predictions / self.cfg.biencoder.eval_batch_size)
         self.log('val_acc_roll', self.validation_correct_predictions / self.val_length_met)
+
+        self.log('val_step_time', end - start, on_step=True)
+
+        if self.global_step % 100 == 0:
+            self.rolling_training_loss = 0
 
         return loss
 
@@ -200,6 +208,7 @@ class BiEncoder(pl.LightningModule):
         self.training_correct_predictions = 0
         self.train_length_met = 0
         self.epoch_training_loss = 0
+        self.rolling_training_loss = 0
 
     def on_validation_epoch_end(self) -> None:
         self.log('val_loss_epoch', self.epoch_validation_loss)
@@ -209,3 +218,4 @@ class BiEncoder(pl.LightningModule):
         self.validation_correct_predictions = 0
         self.val_length_met = 0
         self.epoch_validation_loss = 0
+        self.rolling_validation_loss = 0
