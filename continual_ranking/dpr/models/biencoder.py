@@ -44,6 +44,8 @@ class BiEncoder(pl.LightningModule):
         self.val_length = 0
         self.val_length_met = 0
 
+        self.experiment_id = -1
+
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
             batch.question_ids,
@@ -205,6 +207,7 @@ class BiEncoder(pl.LightningModule):
         self.log('train_acc_epoch', self.training_correct_predictions / self.train_length)
 
     def on_train_epoch_start(self) -> None:
+        self.log('experiment_id', self.experiment_id)
         self.training_correct_predictions = 0
         self.train_length_met = 0
         self.epoch_training_loss = 0
