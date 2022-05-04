@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from avalanche.training.utils import copy_params_dict, zerolike_params_dict
 
 from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
-from continual_ranking.continual_learning.strategies.strategy import Strategy
+from continual_ranking.continual_learning.strategy import Strategy
 
 
 class EWC(Strategy):
