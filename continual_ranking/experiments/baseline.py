@@ -44,7 +44,6 @@ class Baseline(Experiment):
         )
 
         wandb.init()
-        wandb.log(OmegaConf.to_container(self.cfg))
 
         self.loggers = [wandb_logger]
 
