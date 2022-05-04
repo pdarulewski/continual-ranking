@@ -4,7 +4,7 @@ import numpy as np
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
 from torch.utils import data
 
-from continual_learning.datamodules.bases.base_mnist import BaseMNIST
+from continual_ranking.continual_learning.datamodules.bases.base_mnist import BaseMNIST
 
 
 class MNIST(BaseMNIST):

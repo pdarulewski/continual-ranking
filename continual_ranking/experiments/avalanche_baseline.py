@@ -11,10 +11,10 @@ from omegaconf import OmegaConf
 from torch.nn import functional
 from tqdm import tqdm
 
-from continual_learning.config.configs import DataModule, BaseConfig
-from continual_learning.config.dicts import DATA_MODULES, MODELS, AVALANCHE_STRATEGIES
-from continual_learning.config.paths import LOG_DIR
-from continual_learning.experiments.experiment import Experiment
+from continual_ranking.config.configs import DataModule, BaseConfig
+from continual_ranking.config.dicts import DATA_MODULES, MODELS, AVALANCHE_STRATEGIES
+from continual_ranking.config.paths import LOG_DIR
+from continual_ranking.experiments.experiment import Experiment
 
 
 class AvalancheBaseline(Experiment):
