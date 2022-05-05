@@ -3,6 +3,7 @@ defaults:
   - datasets
   - biencoder
   - indexing
+  - strategies
 
 seed: 42
 
@@ -15,8 +16,11 @@ experiment_name: baseline_25_1n
 negatives_amount: 1
 
 run_type:
-  baseline: true
-  continual_learning: false
+  strategy: baseline
+  #  strategy: naive
+  #  strategy: ewc
+  #  strategy: gem
+  #  strategy: rehearsal
   sizes: [ 0, 10_000, 15_000 ]
 #  sizes: [ 0, 20_000, 25_000, 30_000 ]
 #  sizes: [ 0, 20_000, 25_000, 30_000, 35_000 ]

@@ -48,6 +48,8 @@ class BiEncoder(pl.LightningModule):
 
         self.index = []
         self.index_mode = False
+        self.test = []
+        self.test_mode = False
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
@@ -99,11 +101,7 @@ class BiEncoder(pl.LightningModule):
         return optimizer
 
     @staticmethod
-    def calculate_loss(
-            q_vectors: Tensor,
-            ctx_vectors: Tensor,
-            positive_ctx_indices: list,
-    ):
+    def calculate_loss(q_vectors: Tensor, ctx_vectors: Tensor, positive_ctx_indices: list):
         scores = dot_product(q_vectors, ctx_vectors)
 
         if len(q_vectors.size()) > 1:
@@ -197,6 +195,8 @@ class BiEncoder(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         if self.index_mode:
             self._index_step(batch)
+        else:
+            self._test_step(batch)
 
     def _index_step(self, batch):
         index_pooled_out = self.context_model.forward(
@@ -206,6 +206,15 @@ class BiEncoder(pl.LightningModule):
         )
 
         self.index.append(index_pooled_out)
+
+    def _test_step(self, batch):
+        test_pooled_out = self.question_model.forward(
+            batch.question_ids,
+            batch.question_segments,
+            batch.question_attn_mask,
+        )
+
+        self.test.append(test_pooled_out)
 
     def on_after_backward(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)

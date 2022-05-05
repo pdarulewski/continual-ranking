@@ -9,7 +9,6 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from continual_ranking.dpr.data.data_module import DataModule
-from continual_ranking.dpr.data.file_handler import store_index
 from continual_ranking.dpr.models.biencoder import BiEncoder
 from continual_ranking.experiments.experiment import Experiment
 
@@ -115,10 +114,9 @@ class Baseline(Experiment):
 
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
 
-    def run_indexing(self):
+    def _run_indexing(self):
         wandb.alert(
             title=f'Indexing for {self.cfg.experiment_name} started!',
-            text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
         )
 
         logger.info(f'Index dataloader size: {len(self.index_dataloader.dataset)}')
@@ -126,7 +124,25 @@ class Baseline(Experiment):
         self.trainer.test(self.model, self.index_dataloader)
         self.model.index_mode = False
 
-        store_index(self.model.index, self.cfg.experiment_name)
+        wandb.alert(
+            title=f'Indexing finished!',
+            text=f'Indexed {len(self.index_dataloader.dataset)} samples'
+        )
+
+    def run_testing(self):
+        self._run_indexing()
+
+        wandb.alert(
+            title=f'Testing for {self.cfg.experiment_name} started!',
+        )
+
+        logger.info(f'Test dataloader size: {len(self.test_dataloader.dataset)}')
+        self.model.test_mode = True
+        self.trainer.test(self.model, self.test_dataloader)
+
+        indexer = Indexer()
+        indexer.index_encoded_data(self.model.index)
+        scores = indexer.get_top_docs(self.model.test.numpy(), 100)
 
         wandb.alert(
             title=f'Indexing finished!',

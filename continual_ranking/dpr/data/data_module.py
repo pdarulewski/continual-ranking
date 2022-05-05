@@ -8,7 +8,8 @@ from torch.utils.data import DataLoader
 
 from continual_ranking.dpr.data.file_handler import read_json_file
 from continual_ranking.dpr.data.index_dataset import IndexDataset
-from continual_ranking.dpr.data.training_dataset import TrainingDataset
+from continual_ranking.dpr.data.test_dataset import TestDataset
+from continual_ranking.dpr.data.train_dataset import TrainDataset
 
 
 class DataModule(pl.LightningDataModule):
@@ -24,7 +25,7 @@ class DataModule(pl.LightningDataModule):
         self.train_sets = None
         self.eval_sets = None
         self.index_set = None
-        self.test_sets = None
+        self.test_set = None
 
         self.train_set_length = 0
 
@@ -38,15 +39,15 @@ class DataModule(pl.LightningDataModule):
         if split_size:
             chunk_sizes = [int(size * split_size) for size in chunk_sizes]
 
-        if self.cfg.run_type.baseline:
+        if self.cfg.strategy == 'baseline':
             chunks = data[:chunk_sizes[-1]]
-            chunks = [TrainingDataset(chunks, self.cfg.negatives_amount)]
+            chunks = [TrainDataset(chunks, self.cfg.negatives_amount)]
 
         else:
             for i in range(len(chunk_sizes) - 1):
                 slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1]]
                 chunks.append(slice_)
-            chunks = [TrainingDataset(chunk, self.cfg.negatives_amount) for chunk in chunks]
+            chunks = [TrainDataset(chunk, self.cfg.negatives_amount) for chunk in chunks]
 
         return chunks
 
@@ -57,12 +58,13 @@ class DataModule(pl.LightningDataModule):
         self.train_sets = self._make_set_splits(self.train_set_path)
         self.eval_sets = self._make_set_splits(self.eval_set_path, self.cfg.datasets.split_size)
 
-        if self.cfg.run_type.baseline:
+        if self.cfg.strategy == 'baseline':
             self.train_set_length = len(self.train_sets)
         else:
             self.train_set_length = sum([len(dataset) for dataset in self.train_sets])
 
         self.index_set = IndexDataset(read_json_file(self.index_set_path))
+        self.test_set = TestDataset(read_json_file(self.test_set_path))
 
     def train_dataloader(self):
         return [
@@ -83,8 +85,7 @@ class DataModule(pl.LightningDataModule):
             self.index_set, batch_size=self.cfg.biencoder.index_batch_size, num_workers=self.cfg.biencoder.num_workers
         )
 
-    def _test_dataloader(self):
-        pass
-
     def test_dataloader(self):
-        pass
+        return DataLoader(
+            self.test_set, batch_size=self.cfg.biencoder.test_batch_size, num_workers=self.cfg.biencoder.num_workers
+        )
