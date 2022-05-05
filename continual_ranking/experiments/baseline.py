@@ -8,6 +8,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
+from continual_ranking.dpr import indexer
 from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.models.biencoder import BiEncoder
 from continual_ranking.experiments.experiment import Experiment
@@ -140,7 +141,6 @@ class Baseline(Experiment):
         self.model.test_mode = True
         self.trainer.test(self.model, self.test_dataloader)
 
-        indexer = Indexer()
         indexer.index_encoded_data(self.model.index)
         scores = indexer.get_top_docs(self.model.test.numpy(), 100)
 

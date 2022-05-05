@@ -1,11 +1,11 @@
 import random
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from typing import List
 
 import torch
 from torch.utils.data import Dataset
 
-from continual_ranking.dpr.data.tensorizer import Tensorizer
+from continual_ranking.dpr.data.tokenizer import Tokenizer
 
 TrainingSample = namedtuple(
     'TrainingSample', [
@@ -27,12 +27,12 @@ TokenizedTrainingSample = namedtuple(
 )
 
 
-class TrainingDataset(Dataset):
+class TrainDataset(Dataset):
 
     def __init__(self, data: List[dict], negatives_amount: int):
         self.data = data
         self.negatives_amount = negatives_amount
-        self.tokenizer = TrainingTokenizer()
+        self.tokenizer = TrainTokenizer()
 
     def __len__(self):
         return len(self.data)
@@ -62,27 +62,26 @@ class TrainingDataset(Dataset):
         return sample
 
 
-class TrainingTokenizer:
+class TrainTokenizer:
     def __init__(self):
-        self.tensorizer = Tensorizer()
+        self.tokenizer = Tokenizer()
 
     def __call__(self, sample: TrainingSample):
-        question_ids = self.tensorizer.text_to_tensor(sample.query)
-        question_segments = torch.zeros_like(question_ids)
-        question_attn_mask = self.tensorizer.get_attn_mask(question_ids)
+        query_tokens = self.tokenizer(sample.query)
 
-        context_ids = [
-            self.tensorizer.text_to_tensor(ctx) for ctx in sample.positive_passages + sample.negative_passages
-        ]
-        context_ids = torch.cat([ctx.view(1, -1) for ctx in context_ids], dim=0)
-        ctx_segments = torch.zeros_like(context_ids)
-        ctx_attn_mask = self.tensorizer.get_attn_mask(context_ids)
+        ctx_tokens = defaultdict(list)
+
+        for ctx in sample.positive_passages + sample.negative_passages:
+            tokens = self.tokenizer(ctx)
+            ctx_tokens['input_ids'].append(tokens['input_ids'].view(-1))
+            ctx_tokens['token_type_ids'].append(tokens['token_type_ids'].view(-1))
+            ctx_tokens['attention_mask'].append(tokens['attention_mask'].view(-1))
 
         return TokenizedTrainingSample(
-            question_ids,
-            question_segments,
-            question_attn_mask,
-            context_ids,
-            ctx_segments,
-            ctx_attn_mask
+            query_tokens['input_ids'].view(-1),
+            query_tokens['token_type_ids'].view(-1),
+            query_tokens['attention_mask'].view(-1),
+            torch.stack(ctx_tokens['input_ids']),
+            torch.stack(ctx_tokens['token_type_ids']),
+            torch.stack(ctx_tokens['attention_mask']),
         )

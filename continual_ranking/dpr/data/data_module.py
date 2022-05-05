@@ -34,7 +34,7 @@ class DataModule(pl.LightningDataModule):
         random.shuffle(data)
         chunks = []
 
-        chunk_sizes = self.cfg.run_type.sizes
+        chunk_sizes = self.cfg.sizes
 
         if split_size:
             chunk_sizes = [int(size * split_size) for size in chunk_sizes]

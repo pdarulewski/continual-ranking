@@ -1,5 +1,0 @@
-# @package strategies.ewc
-ewc_lambda: 0.1
-mode: separate  # separate or online
-decay_factor: 0
-keep_importance_data: false

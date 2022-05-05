@@ -2,26 +2,25 @@ defaults:
   - _self_
   - datasets
   - biencoder
-  - indexing
   - strategies
 
 seed: 42
 
 project_name: continual_ranking
 device: gpu
-fast_dev_run: false
+fast_dev_run: true
 
-experiment_name: baseline_25_1n
+experiment_name: test_1k
 
-negatives_amount: 1
+negatives_amount: 10
 
-run_type:
-  strategy: baseline
-  #  strategy: naive
-  #  strategy: ewc
-  #  strategy: gem
-  #  strategy: rehearsal
-  sizes: [ 0, 10_000, 15_000 ]
+strategy: baseline
+#  strategy: naive
+#  strategy: ewc
+#  strategy: gem
+#  strategy: rehearsal
+
+sizes: [ 0, 1_000 ]
 #  sizes: [ 0, 20_000, 25_000, 30_000 ]
 #  sizes: [ 0, 20_000, 25_000, 30_000, 35_000 ]
 #  sizes: [ 0, 20_000, 25_000, 30_000, 35_000, 40_000 ]

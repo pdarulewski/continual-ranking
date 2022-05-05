@@ -1,5 +1,6 @@
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -92,6 +93,30 @@ def wiki_parsed():
         os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'embeddings.json'),
         orient='records'
     )
+
+
+def lengths():
+    df = pd.read_csv(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'source', 'subset.tsv.gz'),
+        sep='\t'
+    )
+
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+
+    for col in df.columns:
+        df[col] = df[col].apply(
+            lambda x: len(tokenizer.encode(x))
+        )
+        print(f'{col} done!')
+
+    plt.hist(df['query'], bins=100)
+    plt.show()
+
+    plt.hist(df['positive_passage'], bins=100)
+    plt.show()
+
+    plt.hist(df['negative_passage'], bins=100)
+    plt.show()
 
 
 def main():

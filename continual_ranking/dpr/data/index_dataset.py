@@ -4,7 +4,7 @@ from typing import List
 import torch
 from torch.utils.data import Dataset
 
-from continual_ranking.dpr.data.tensorizer import Tensorizer
+from continual_ranking.dpr.data.tokenizer import Tokenizer
 
 IndexSample = namedtuple(
     'IndexSample', [
@@ -46,10 +46,10 @@ class IndexDataset(Dataset):
 
 class IndexTokenizer:
     def __init__(self):
-        self.tensorizer = Tensorizer()
+        self.tensorizer = Tokenizer()
 
     def __call__(self, sample: IndexSample):
-        index_ids = self.tensorizer.text_to_tensor(sample.positive_passages, sample.query)
+        index_ids = self.tensorizer.tokenize(sample.positive_passages, sample.query)
         index_segments = torch.zeros_like(index_ids)
         index_attn_mask = self.tensorizer.get_attn_mask(index_ids)
 
