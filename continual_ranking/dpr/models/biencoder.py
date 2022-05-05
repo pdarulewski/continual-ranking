@@ -216,15 +216,15 @@ class BiEncoder(pl.LightningModule):
 
         self.test.append(test_pooled_out)
 
-    # def on_after_backward(self) -> None:
-    #     torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)
+    def on_after_backward(self) -> None:
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)
 
     def on_train_epoch_end(self) -> None:
         self.log('train_loss_epoch', self.epoch_training_loss)
         self.log('train_acc_epoch', self.training_correct_predictions / self.train_length)
 
     def on_train_epoch_start(self) -> None:
-        self.log('experiment_id', torch.tensor([self.experiment_id]))
+        self.log('experiment_id', self.experiment_id)
         self.training_correct_predictions = 0
         self.train_length_met = 0
         self.epoch_training_loss = 0
