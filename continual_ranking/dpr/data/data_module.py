@@ -7,9 +7,9 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
 from continual_ranking.dpr.data.file_handler import read_json_file
-from continual_ranking.dpr.data.index_dataset import IndexDataset
-from continual_ranking.dpr.data.test_dataset import TestDataset
-from continual_ranking.dpr.data.train_dataset import TrainDataset
+from continual_ranking.dpr.data.index_dataset import IndexDataset, IndexTokenizer
+from continual_ranking.dpr.data.test_dataset import TestDataset, TestTokenizer
+from continual_ranking.dpr.data.train_dataset import TrainDataset, TrainTokenizer
 
 
 class DataModule(pl.LightningDataModule):
@@ -36,18 +36,20 @@ class DataModule(pl.LightningDataModule):
 
         chunk_sizes = self.cfg.sizes
 
+        tokenizer = TrainTokenizer(self.cfg.biencoder.sequence_length)
+
         if split_size:
             chunk_sizes = [int(size * split_size) for size in chunk_sizes]
 
         if self.cfg.strategy == 'baseline':
             chunks = data[:chunk_sizes[-1]]
-            chunks = [TrainDataset(chunks, self.cfg.negatives_amount)]
+            chunks = [TrainDataset(chunks, self.cfg.negatives_amount, tokenizer)]
 
         else:
             for i in range(len(chunk_sizes) - 1):
                 slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1]]
                 chunks.append(slice_)
-            chunks = [TrainDataset(chunk, self.cfg.negatives_amount) for chunk in chunks]
+            chunks = [TrainDataset(chunk, self.cfg.negatives_amount, tokenizer) for chunk in chunks]
 
         return chunks
 
@@ -63,8 +65,11 @@ class DataModule(pl.LightningDataModule):
         else:
             self.train_set_length = sum([len(dataset) for dataset in self.train_sets])
 
-        self.index_set = IndexDataset(read_json_file(self.index_set_path))
-        self.test_set = TestDataset(read_json_file(self.test_set_path))
+        index_tokenizer = IndexTokenizer(self.cfg.biencoder.sequence_length)
+        test_tokenizer = TestTokenizer(self.cfg.biencoder.sequence_length)
+
+        self.index_set = IndexDataset(read_json_file(self.index_set_path), index_tokenizer)
+        self.test_set = TestDataset(read_json_file(self.test_set_path), test_tokenizer)
 
     def train_dataloader(self):
         return [

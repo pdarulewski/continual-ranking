@@ -2,9 +2,9 @@ from transformers import BertTokenizer
 
 
 class Tokenizer:
-    def __init__(self):
+    def __init__(self, max_length: int):
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
-        self.max_length = 100
+        self.max_length = max_length
         self.pad_to_max = True
 
     def __call__(self, text: str, title: str = None):

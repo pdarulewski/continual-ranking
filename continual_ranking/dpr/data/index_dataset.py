@@ -1,7 +1,6 @@
 from collections import namedtuple
 from typing import List
 
-import torch
 from torch.utils.data import Dataset
 
 from continual_ranking.dpr.data.tokenizer import Tokenizer
@@ -15,18 +14,32 @@ IndexSample = namedtuple(
 
 TokenizedIndexSample = namedtuple(
     'TokenizedIndexSample', [
-        'index_ids',
-        'index_segments',
-        'index_attn_mask',
+        'input_ids',
+        'token_type_ids',
+        'attention_mask',
     ]
 )
 
 
+class IndexTokenizer:
+    def __init__(self, max_length: int):
+        self.tokenizer = Tokenizer(max_length)
+
+    def __call__(self, sample: IndexSample):
+        index_tokens = self.tokenizer(sample.positive_passages, sample.query)
+
+        return TokenizedIndexSample(
+            index_tokens['input_ids'],
+            index_tokens['token_type_ids'],
+            index_tokens['attention_mask']
+        )
+
+
 class IndexDataset(Dataset):
 
-    def __init__(self, data: List[dict]):
+    def __init__(self, data: List[dict], tokenizer: IndexTokenizer):
         self.data = data
-        self.tokenizer = IndexTokenizer()
+        self.tokenizer = tokenizer
 
     def __len__(self):
         return len(self.data)
@@ -42,19 +55,3 @@ class IndexDataset(Dataset):
         sample = self.tokenizer(sample)
 
         return sample
-
-
-class IndexTokenizer:
-    def __init__(self):
-        self.tensorizer = Tokenizer()
-
-    def __call__(self, sample: IndexSample):
-        index_ids = self.tensorizer.tokenize(sample.positive_passages, sample.query)
-        index_segments = torch.zeros_like(index_ids)
-        index_attn_mask = self.tensorizer.get_attn_mask(index_ids)
-
-        return TokenizedIndexSample(
-            index_ids,
-            index_segments,
-            index_attn_mask,
-        )

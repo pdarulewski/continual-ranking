@@ -27,12 +27,37 @@ TokenizedTrainingSample = namedtuple(
 )
 
 
+class TrainTokenizer:
+    def __init__(self, max_length: int):
+        self.tokenizer = Tokenizer(max_length)
+
+    def __call__(self, sample: TrainingSample):
+        query_tokens = self.tokenizer(sample.query)
+
+        ctx_tokens = defaultdict(list)
+
+        for ctx in sample.positive_passages + sample.negative_passages:
+            tokens = self.tokenizer(ctx)
+            ctx_tokens['input_ids'].append(tokens['input_ids'].view(-1))
+            ctx_tokens['token_type_ids'].append(tokens['token_type_ids'].view(-1))
+            ctx_tokens['attention_mask'].append(tokens['attention_mask'].view(-1))
+
+        return TokenizedTrainingSample(
+            query_tokens['input_ids'].view(-1),
+            query_tokens['token_type_ids'].view(-1),
+            query_tokens['attention_mask'].view(-1),
+            torch.stack(ctx_tokens['input_ids']),
+            torch.stack(ctx_tokens['token_type_ids']),
+            torch.stack(ctx_tokens['attention_mask']),
+        )
+
+
 class TrainDataset(Dataset):
 
-    def __init__(self, data: List[dict], negatives_amount: int):
+    def __init__(self, data: List[dict], negatives_amount: int, tokenizer: TrainTokenizer):
         self.data = data
         self.negatives_amount = negatives_amount
-        self.tokenizer = TrainTokenizer()
+        self.tokenizer = tokenizer
 
     def __len__(self):
         return len(self.data)
@@ -60,28 +85,3 @@ class TrainDataset(Dataset):
         sample = self.tokenizer(sample)
 
         return sample
-
-
-class TrainTokenizer:
-    def __init__(self):
-        self.tokenizer = Tokenizer()
-
-    def __call__(self, sample: TrainingSample):
-        query_tokens = self.tokenizer(sample.query)
-
-        ctx_tokens = defaultdict(list)
-
-        for ctx in sample.positive_passages + sample.negative_passages:
-            tokens = self.tokenizer(ctx)
-            ctx_tokens['input_ids'].append(tokens['input_ids'].view(-1))
-            ctx_tokens['token_type_ids'].append(tokens['token_type_ids'].view(-1))
-            ctx_tokens['attention_mask'].append(tokens['attention_mask'].view(-1))
-
-        return TokenizedTrainingSample(
-            query_tokens['input_ids'].view(-1),
-            query_tokens['token_type_ids'].view(-1),
-            query_tokens['attention_mask'].view(-1),
-            torch.stack(ctx_tokens['input_ids']),
-            torch.stack(ctx_tokens['token_type_ids']),
-            torch.stack(ctx_tokens['attention_mask']),
-        )
