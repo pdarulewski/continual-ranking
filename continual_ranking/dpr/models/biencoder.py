@@ -23,7 +23,7 @@ class BiEncoder(pl.LightningModule):
     def __init__(self, cfg, max_iterations: int):
         super().__init__()
         self.cfg = cfg
-        self.automatic_optimization = False
+        # self.automatic_optimization = False
 
         self.question_model: Encoder = Encoder.init_encoder()
         self.context_model: Encoder = Encoder.init_encoder()
@@ -97,7 +97,7 @@ class BiEncoder(pl.LightningModule):
             },
         ]
         optimizer = AdamW(parameters, lr=self.cfg.biencoder.learning_rate, eps=self.cfg.biencoder.adam_eps)
-        self.configure_scheduler(optimizer)
+        # self.configure_scheduler(optimizer)
         return optimizer
 
     @staticmethod
@@ -140,12 +140,12 @@ class BiEncoder(pl.LightningModule):
         start = time.time()
 
         optimizers = self.optimizers()
-        optimizers.zero_grad()
+        # optimizers.zero_grad()
 
         loss, correct_predictions = self._shared_step(batch, batch_idx)
 
-        self.manual_backward(loss)
-        optimizers.step()
+        # self.manual_backward(loss)
+        # optimizers.step()
         # self.scheduler.step()
 
         end = time.time()
