@@ -8,7 +8,7 @@ seed: 42
 
 project_name: continual_ranking
 device: gpu
-fast_dev_run: true
+fast_dev_run: false
 
 experiment_name: test_1k
 
