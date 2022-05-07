@@ -11,6 +11,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from continual_ranking.dpr.data import DataModule
+from continual_ranking.dpr.data.evaluator import Evaluator
 from continual_ranking.dpr.models import BiEncoder
 from continual_ranking.experiments.experiment import Experiment
 
@@ -143,14 +144,24 @@ class Baseline(Experiment):
     def _test(self):
         self.alert(title=f'Testing for {self.cfg.experiment_name} started!')
 
-        logger.info(f'Test dataloader size: {len(self.test_dataloader.dataset)}')
-
         self.model.test_length = len(self.test_dataloader.dataset)
+        logger.info(f'Test dataloader size: {self.model.test_length}')
+
         self.trainer.test(self.model, self.test_dataloader)
+        self.model.test = torch.cat(self.model.test)
+
+        evaluator = Evaluator(
+            self.index_dataloader.dataset,
+            self.test_dataloader.dataset,
+            self.model.test
+        )
+
+        scores = evaluator.calculate_k_docs()
+        wandb.log(scores)
 
         self.alert(
             title=f'Testing finished!',
-            text=f'Tested {len(self.test_dataloader.dataset)} samples'
+            text=f'Tested {self.model.test_length} samples'
         )
 
     def run_testing(self):

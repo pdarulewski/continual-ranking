@@ -215,7 +215,13 @@ class BiEncoder(pl.LightningModule):
             self.log('test_acc_step', self.test_acc_step / (100 * self.cfg.biencoder.test_batch_size))
             self.test_acc_step = 0
 
-        self._calculate_k_docs(batch)
+        test_pooled_out = self.question_model.forward(
+            batch.question_ids,
+            batch.question_segments,
+            batch.question_attn_mask,
+        )
+
+        self.test.append(dot_product(test_pooled_out, self.index))
 
         return loss
 
@@ -224,15 +230,6 @@ class BiEncoder(pl.LightningModule):
             self._index_step(batch)
         else:
             self._test_step(batch, batch_idx)
-
-    def _calculate_k_docs(self, batch):
-        test_pooled_out = self.question_model.forward(
-            batch.question_ids,
-            batch.question_segments,
-            batch.question_attn_mask,
-        )
-
-        self.test.append(dot_product(test_pooled_out, self.index))
 
     def on_after_backward(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)

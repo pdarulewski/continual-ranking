@@ -71,23 +71,31 @@ class DataModule(pl.LightningDataModule):
     def train_dataloader(self):
         return [
             DataLoader(
-                train_set, batch_size=self.cfg.biencoder.train_batch_size, num_workers=self.cfg.biencoder.num_workers
+                train_set,
+                batch_size=self.cfg.biencoder.train_batch_size,
+                num_workers=self.cfg.biencoder.num_workers
             ) for train_set in self.train_sets
         ]
 
     def val_dataloader(self):
         return [
             DataLoader(
-                eval_set, batch_size=self.cfg.biencoder.val_batch_size, num_workers=self.cfg.biencoder.num_workers
+                eval_set,
+                batch_size=self.cfg.biencoder.val_batch_size,
+                num_workers=self.cfg.biencoder.num_workers
             ) for eval_set in self.eval_sets
         ]
 
     def index_dataloader(self):
         return DataLoader(
-            self.index_set, batch_size=self.cfg.biencoder.index_batch_size, num_workers=self.cfg.biencoder.num_workers
+            self.index_set,
+            batch_size=self.cfg.biencoder.index_batch_size,
+            num_workers=self.cfg.biencoder.num_workers
         )
 
     def test_dataloader(self):
         return DataLoader(
-            self.test_set, batch_size=self.cfg.biencoder.test_batch_size, num_workers=self.cfg.biencoder.num_workers
+            self.test_set,
+            batch_size=self.cfg.biencoder.test_batch_size,
+            num_workers=self.cfg.biencoder.num_workers
         )
