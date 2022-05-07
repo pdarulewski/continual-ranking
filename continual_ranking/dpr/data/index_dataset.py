@@ -29,9 +29,9 @@ class IndexTokenizer:
         index_tokens = self.tokenizer(sample.positive_passages, sample.query)
 
         return TokenizedIndexSample(
-            index_tokens['input_ids'],
-            index_tokens['token_type_ids'],
-            index_tokens['attention_mask']
+            index_tokens['input_ids'].view(-1),
+            index_tokens['token_type_ids'].view(-1),
+            index_tokens['attention_mask'].view(-1)
         )
 
 

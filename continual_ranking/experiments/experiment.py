@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
+from continual_ranking.continual_learning import ContinualTrainer
 
 
 class Experiment(ABC):
@@ -62,8 +62,13 @@ class Experiment(ABC):
 
     @abstractmethod
     def run_training(self):
-        """Run training and testing loop"""
+        """Run training loop"""
+
+    @abstractmethod
+    def run_testing(self):
+        """Run testing loop"""
 
     def execute(self):
         self.setup()
         self.run_training()
+        self.run_testing()

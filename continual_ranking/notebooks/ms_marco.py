@@ -6,7 +6,7 @@ import pandas as pd
 from tqdm import tqdm
 from transformers import BertModel, BertTokenizer
 
-from continual_ranking.config.paths import DATA_DIR
+from continual_ranking.paths import DATA_DIR
 
 MS_MARCO_PATH = os.path.join(DATA_DIR, 'MSMARCO', 'documents')
 

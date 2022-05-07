@@ -8,11 +8,11 @@ seed: 42
 
 project_name: continual_ranking
 device: gpu
-fast_dev_run: false
+fast_dev_run: true
 
 experiment_name: test_1k
 
-negatives_amount: 10
+negatives_amount: 1
 
 strategy: baseline
 #  strategy: naive

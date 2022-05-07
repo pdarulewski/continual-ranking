@@ -1,16 +1,17 @@
 import logging
 import math
 import os
+import time
 
+import torch
 import wandb
 from omegaconf import OmegaConf, DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
-from continual_ranking.dpr import indexer
-from continual_ranking.dpr.data.data_module import DataModule
-from continual_ranking.dpr.models.biencoder import BiEncoder
+from continual_ranking.dpr.data import DataModule
+from continual_ranking.dpr.models import BiEncoder
 from continual_ranking.experiments.experiment import Experiment
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,10 @@ class Baseline(Experiment):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg=cfg)
         self.fast_dev_run = cfg.fast_dev_run
+
+    def alert(self, title: str, text: str = None):
+        if not self.fast_dev_run:
+            self.alert(title=title, text=text)
 
     def prepare_dataloaders(self) -> None:
         logger.info('Setting up dataloaders')
@@ -45,13 +50,14 @@ class Baseline(Experiment):
             offline=self.fast_dev_run,
         )
 
-        wandb.init()
-
         self.loggers = [wandb_logger]
 
     def setup_model(self) -> None:
         logger.info('Setting up model')
-        self.model = BiEncoder(self.cfg, math.ceil(self.datamodule.train_set_length / self.cfg.biencoder.batch_size))
+        self.model = BiEncoder(
+            self.cfg,
+            math.ceil(self.datamodule.train_set_length / self.cfg.biencoder.train_batch_size)
+        )
 
     def setup_callbacks(self) -> None:
         logger.info('Setting up callbacks')
@@ -90,7 +96,7 @@ class Baseline(Experiment):
         pass
 
     def run_training(self):
-        wandb.alert(
+        self.alert(
             title=f'Training for {self.cfg.experiment_name} started!',
             text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
         )
@@ -108,43 +114,45 @@ class Baseline(Experiment):
             logger.info(train_data_len_msg)
             logger.info(val_data_len_msg)
 
-            wandb.alert(
+            self.alert(
                 title=f'Experiment #{i} for {self.cfg.experiment_name} started!',
                 text=f'{train_data_len_msg}\n{val_data_len_msg}'
             )
 
+            start = time.time()
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
+            elapsed = time.time() - start
 
-    def _run_indexing(self):
-        wandb.alert(
-            title=f'Indexing for {self.cfg.experiment_name} started!',
-        )
+            wandb.log({'training_time': elapsed})
 
+    def _encode_dataset(self):
+        self.alert(title=f'Indexing for {self.cfg.experiment_name} started!')
         logger.info(f'Index dataloader size: {len(self.index_dataloader.dataset)}')
+
         self.model.index_mode = True
         self.trainer.test(self.model, self.index_dataloader)
         self.model.index_mode = False
 
-        wandb.alert(
+        self.model.index = torch.cat(self.model.index)
+
+        self.alert(
             title=f'Indexing finished!',
-            text=f'Indexed {len(self.index_dataloader.dataset)} samples'
+            text=f'Indexed {len(self.model.index)} samples'
+        )
+
+    def _test(self):
+        self.alert(title=f'Testing for {self.cfg.experiment_name} started!')
+
+        logger.info(f'Test dataloader size: {len(self.test_dataloader.dataset)}')
+
+        self.model.test_length = len(self.test_dataloader.dataset)
+        self.trainer.test(self.model, self.test_dataloader)
+
+        self.alert(
+            title=f'Testing finished!',
+            text=f'Tested {len(self.test_dataloader.dataset)} samples'
         )
 
     def run_testing(self):
-        self._run_indexing()
-
-        wandb.alert(
-            title=f'Testing for {self.cfg.experiment_name} started!',
-        )
-
-        logger.info(f'Test dataloader size: {len(self.test_dataloader.dataset)}')
-        self.model.test_mode = True
-        self.trainer.test(self.model, self.test_dataloader)
-
-        indexer.index_encoded_data(self.model.index)
-        scores = indexer.get_top_docs(self.model.test.numpy(), 100)
-
-        wandb.alert(
-            title=f'Indexing finished!',
-            text=f'Indexed {len(self.index_dataloader.dataset)} samples'
-        )
+        self._encode_dataset()
+        self._test()
