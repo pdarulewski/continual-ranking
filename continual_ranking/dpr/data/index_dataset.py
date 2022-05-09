@@ -26,7 +26,7 @@ class IndexTokenizer:
         self.tokenizer = Tokenizer(max_length)
 
     def __call__(self, sample: IndexSample):
-        index_tokens = self.tokenizer(sample.positive_passages, sample.query)
+        index_tokens = self.tokenizer(sample.positive_passages)
 
         return TokenizedIndexSample(
             index_tokens['input_ids'].view(-1),
