@@ -194,7 +194,7 @@ class BiEncoder(pl.LightningModule):
             batch.attention_mask,
         )
 
-        self.index.append(index_pooled_out)
+        self.index.append(index_pooled_out.to('cpu'))
 
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
         loss, correct_predictions = self._shared_step(batch, batch_idx)
@@ -221,7 +221,7 @@ class BiEncoder(pl.LightningModule):
             batch.question_attn_mask,
         )
 
-        self.test.append(dot_product(test_pooled_out, self.index))
+        self.test.append(dot_product(test_pooled_out.to('cpu'), self.index))
 
         return loss
 
