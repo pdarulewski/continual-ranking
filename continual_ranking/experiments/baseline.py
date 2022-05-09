@@ -25,7 +25,7 @@ class Baseline(Experiment):
         super().__init__(cfg=cfg)
         self.fast_dev_run = cfg.fast_dev_run
 
-    def alert(self, title: str, text: str = None):
+    def alert(self, title: str, text: str = ''):
         if not self.fast_dev_run:
             wandb.alert(title=title, text=text)
 
@@ -137,7 +137,7 @@ class Baseline(Experiment):
 
         self.model.index = torch.cat(self.model.index)
 
-        with open('index', 'wb') as f:
+        with open(f'index_{self.cfg.experiment_name}_{self.model.experiment_id}', 'wb') as f:
             pickle.dump(self.model.index, f)
 
         self.alert(
@@ -154,7 +154,7 @@ class Baseline(Experiment):
         self.trainer.test(self.model, self.test_dataloader)
         self.model.test = torch.cat(self.model.test)
 
-        with open('test', 'wb') as f:
+        with open(f'test_{self.cfg.experiment_name}_{self.model.experiment_id}', 'wb') as f:
             pickle.dump(self.model.test, f)
 
         evaluator = Evaluator(
