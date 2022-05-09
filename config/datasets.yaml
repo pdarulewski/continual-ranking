@@ -1,7 +1,7 @@
 # @package datasets
-train: data/MSMARCO/passages/wiki_train5.json
-val: data/MSMARCO/passages/wiki_train5.json
-index: data/MSMARCO/passages/embeddings5.json
-test: data/MSMARCO/passages/wiki_train5.json
+train: data/MSMARCO/passages/train.json
+val: data/MSMARCO/passages/val.json
+index: data/MSMARCO/passages/index.json
+test: data/MSMARCO/passages/test.json
 
 split_size: 0.2
