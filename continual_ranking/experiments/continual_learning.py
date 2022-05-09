@@ -3,8 +3,8 @@ import logging
 from omegaconf import DictConfig
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
-from continual_ranking.continual_learning import EWC
-from continual_ranking.continual_learning import GEM
+from continual_ranking.continual_learning.ewc import EWC
+from continual_ranking.continual_learning.gem import GEM
 from continual_ranking.experiments.baseline import Baseline
 
 logger = logging.getLogger(__name__)
