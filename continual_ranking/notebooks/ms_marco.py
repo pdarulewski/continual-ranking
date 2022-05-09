@@ -60,7 +60,7 @@ def wiki_parsed():
 
     train, dev, test = np.split(df.sample(frac=1, random_state=42), [int(.6 * len(df)), int(.8 * len(df))])
 
-    for frame in (train, dev):
+    for frame in (train, dev, test):
         frame['positive_ctxs'] = frame['positive_ctxs'].apply(
             lambda x: [x]
         )
@@ -76,11 +76,6 @@ def wiki_parsed():
     dev.to_json(
         os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'eval.json'),
         orient='records'
-    )
-
-    test = test[['question', 'positive_ctxs']]
-    test['positive_ctxs'] = test['positive_ctxs'].apply(
-        lambda x: [x]
     )
 
     test.to_json(

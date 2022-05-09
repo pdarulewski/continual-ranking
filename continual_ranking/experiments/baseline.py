@@ -27,7 +27,7 @@ class Baseline(Experiment):
 
     def alert(self, title: str, text: str = None):
         if not self.fast_dev_run:
-            self.alert(title=title, text=text)
+            wandb.alert(title=title, text=text)
 
     def prepare_dataloaders(self) -> None:
         logger.info('Setting up dataloaders')
