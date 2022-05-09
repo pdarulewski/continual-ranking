@@ -1,6 +1,7 @@
 import logging
 import math
 import os
+import pickle
 import time
 
 import torch
@@ -136,6 +137,9 @@ class Baseline(Experiment):
 
         self.model.index = torch.cat(self.model.index)
 
+        with open('index', 'wb') as f:
+            pickle.dump(self.model.index, f)
+
         self.alert(
             title=f'Indexing finished!',
             text=f'Indexed {len(self.model.index)} samples'
@@ -149,6 +153,9 @@ class Baseline(Experiment):
 
         self.trainer.test(self.model, self.test_dataloader)
         self.model.test = torch.cat(self.model.test)
+
+        with open('test', 'wb') as f:
+            pickle.dump(self.model.test, f)
 
         evaluator = Evaluator(
             self.index_dataloader.dataset,
