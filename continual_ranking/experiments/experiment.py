@@ -25,6 +25,9 @@ class Experiment(ABC):
 
         self.callbacks: List[pl.Callback] = []
 
+        self.global_step = 0
+        self.epochs_completed = 0
+
         self.cfg = cfg
 
     @abstractmethod
@@ -58,7 +61,6 @@ class Experiment(ABC):
         self.setup_model()
         self.setup_strategies()
         self.setup_callbacks()
-        self.setup_trainer()
 
     @abstractmethod
     def run_training(self):

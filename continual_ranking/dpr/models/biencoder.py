@@ -4,11 +4,13 @@ from typing import Tuple, Union
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+import wandb
 from torch import Tensor
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 
 from continual_ranking.dpr.data import TokenizedIndexSample, TokenizedTrainingSample
+from continual_ranking.dpr.data.evaluator import Evaluator
 from continual_ranking.dpr.models.encoder import Encoder
 
 logger = logging.getLogger(__name__)
@@ -51,12 +53,12 @@ class BiEncoder(pl.LightningModule):
         self.test_length = 0
         self.test_length_met = 0
 
-        self.experiment_id = -1
-
         self.index: Union[list, torch.Tensor] = []
         self.index_mode = False
         self.test = []
         self.test_mode = False
+
+        self.evaluator = Evaluator()
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
@@ -221,7 +223,9 @@ class BiEncoder(pl.LightningModule):
             batch.question_attn_mask,
         )
 
-        self.test.append(dot_product(test_pooled_out.to('cpu'), self.index))
+        scores = dot_product(test_pooled_out.to('cpu'), self.index)
+
+        self.evaluator.calculate_k_docs(scores, batch)
 
         return loss
 
@@ -239,7 +243,6 @@ class BiEncoder(pl.LightningModule):
         self.log('train_acc_epoch', self.train_acc_roll / self.train_length)
 
     def on_train_epoch_start(self) -> None:
-        self.log('experiment_id', self.experiment_id)
         self.train_acc_roll = 0
         self.train_length_met = 0
         self.train_loss_epoch = 0
@@ -250,9 +253,13 @@ class BiEncoder(pl.LightningModule):
         self.log('val_acc_epoch', self.val_acc_roll / self.val_length)
 
     def on_test_epoch_end(self) -> None:
-        if not self.index_mode:
+        if self.index_mode:
+            self.evaluator.index = self.index
+        else:
             self.log('test_loss_epoch', self.test_loss_epoch)
             self.log('test_acc_epoch', self.test_acc_roll / self.test_length)
+            scores = self.evaluator.calculate_acc(self.test_length)
+            wandb.log(scores)
 
     def on_validation_epoch_start(self) -> None:
         self.val_acc_roll = 0

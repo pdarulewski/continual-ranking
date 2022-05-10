@@ -24,9 +24,10 @@ class Baseline(Experiment):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg=cfg)
         self.fast_dev_run = cfg.fast_dev_run
+        self.logging_on = cfg.logging_on
 
     def alert(self, title: str, text: str = ''):
-        if not self.fast_dev_run:
+        if self.logging_on:
             wandb.alert(title=title, text=text)
 
     def prepare_dataloaders(self) -> None:
@@ -49,8 +50,10 @@ class Baseline(Experiment):
         wandb_logger = WandbLogger(
             name=self.cfg.experiment_name,
             project=self.cfg.project_name,
-            offline=self.fast_dev_run,
+            offline=not self.logging_on,
         )
+
+        wandb.init()
 
         self.loggers = [wandb_logger]
 
@@ -94,6 +97,10 @@ class Baseline(Experiment):
             fast_dev_run=self.fast_dev_run
         )
 
+        self.trainer.fit_loop.epoch_loop.batch_loop.optimizer_loop.optim_progress.optimizer.step.total.completed = self.global_step  # :)
+        self.trainer.fit_loop.epoch_loop._batches_that_stepped = self.global_step
+        self.trainer.fit_loop.epoch_progress.current.completed = self.epochs_completed
+
     def setup_strategies(self) -> None:
         pass
 
@@ -104,7 +111,6 @@ class Baseline(Experiment):
         )
 
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
-            self.model.experiment_id = i
             train_length = len(train_dataloader.dataset)
             val_length = len(val_dataloader.dataset)
             train_data_len_msg = f'Training dataloader size: {train_length}'
@@ -121,10 +127,16 @@ class Baseline(Experiment):
                 text=f'{train_data_len_msg}\n{val_data_len_msg}'
             )
 
+            self.setup_trainer()
+
             start = time.time()
-            self.trainer.fit(self.model, train_dataloader, val_dataloader)
+            self.trainer.fit(self.model, train_dataloader)
             elapsed = time.time() - start
 
+            self.global_step = self.trainer.global_step
+            self.epochs_completed += self.trainer.current_epoch
+
+            wandb.log({'experiment_id': i})
             wandb.log({'training_time': elapsed})
 
     def _encode_dataset(self):
@@ -152,19 +164,6 @@ class Baseline(Experiment):
         logger.info(f'Test dataloader size: {self.model.test_length}')
 
         self.trainer.test(self.model, self.test_dataloader)
-        self.model.test = torch.cat(self.model.test)
-
-        with open(f'test_{self.cfg.experiment_name}_{self.model.experiment_id}', 'wb') as f:
-            pickle.dump(self.model.test, f)
-
-        evaluator = Evaluator(
-            self.index_dataloader.dataset,
-            self.test_dataloader.dataset,
-            self.model.test
-        )
-
-        scores = evaluator.calculate_k_docs()
-        wandb.log(scores)
 
         self.alert(
             title=f'Testing finished!',

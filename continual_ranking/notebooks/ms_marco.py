@@ -74,7 +74,7 @@ def wiki_parsed():
     )
 
     dev.to_json(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'eval.json'),
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'val.json'),
         orient='records'
     )
 
@@ -85,7 +85,7 @@ def wiki_parsed():
 
     embeddings = embeddings[['question', 'positive_ctxs']]
     embeddings.to_json(
-        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'embeddings.json'),
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'index.json'),
         orient='records'
     )
 
