@@ -25,6 +25,7 @@ class Baseline(Experiment):
         super().__init__(cfg=cfg)
         self.fast_dev_run = cfg.fast_dev_run
         self.logging_on = cfg.logging_on
+        self.experiment_id = 0
 
     def alert(self, title: str, text: str = ''):
         if self.logging_on:
@@ -136,6 +137,7 @@ class Baseline(Experiment):
             self.global_step = self.trainer.global_step
             self.epochs_completed += self.trainer.current_epoch
 
+            self.experiment_id = i
             wandb.log({'experiment_id': i})
             wandb.log({'training_time': elapsed})
 
@@ -147,10 +149,10 @@ class Baseline(Experiment):
         self.trainer.test(self.model, self.index_dataloader)
         self.model.index_mode = False
 
-        self.model.index = torch.cat(self.model.index)
-
-        with open(f'index_{self.cfg.experiment_name}_{self.model.experiment_id}', 'wb') as f:
+        with open(f'index_{self.cfg.experiment_name}_{self.experiment_id}', 'wb') as f:
             pickle.dump(self.model.index, f)
+
+        self.model.evaluator.index_dataset = self.index_dataloader.dataset
 
         self.alert(
             title=f'Indexing finished!',

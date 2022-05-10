@@ -9,7 +9,7 @@ from continual_ranking.dpr.data import TokenizedTrainingSample
 class Evaluator:
 
     def __init__(self):
-        self.index = None
+        self.index_dataset = None
         self.k = [5] + list(range(10, 110, 10))
         self.top_k_docs = {k: 0 for k in self.k}
 
@@ -17,10 +17,10 @@ class Evaluator:
         for k in self.k:
             for i, sample in enumerate(scores):
                 top_items = torch.topk(scores[i], k).indices
-                positive = batch[i].context_ids[0]
+                positive = batch.context_ids[i][0]
 
                 for j in top_items:
-                    if torch.equal(self.index[j].input_ids, positive):
+                    if torch.equal(self.index_dataset[j].input_ids, positive):
                         self.top_k_docs[k] += 1
 
     def calculate_acc(self, test_length: int) -> Dict[str, float]:
