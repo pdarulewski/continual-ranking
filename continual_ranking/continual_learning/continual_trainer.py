@@ -19,4 +19,4 @@ class ContinualTrainer(pl.Trainer):
             train_dataloader=None,
             ckpt_path: Optional[str] = None,
     ) -> None:
-        super().fit(model, train_dataloaders, val_dataloaders, datamodule, train_dataloader, ckpt_path)
+        super().fit(model, train_dataloaders, val_dataloaders, datamodule, ckpt_path)

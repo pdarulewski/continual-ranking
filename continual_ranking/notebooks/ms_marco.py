@@ -1,11 +1,12 @@
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from transformers import BertModel, BertTokenizer
 
-from continual_ranking.config.paths import DATA_DIR
+from continual_ranking.paths import DATA_DIR
 
 MS_MARCO_PATH = os.path.join(DATA_DIR, 'MSMARCO', 'documents')
 
@@ -59,7 +60,7 @@ def wiki_parsed():
 
     train, dev, test = np.split(df.sample(frac=1, random_state=42), [int(.6 * len(df)), int(.8 * len(df))])
 
-    for frame in (train, dev):
+    for frame in (train, dev, test):
         frame['positive_ctxs'] = frame['positive_ctxs'].apply(
             lambda x: [x]
         )
@@ -77,11 +78,6 @@ def wiki_parsed():
         orient='records'
     )
 
-    test = test[['question', 'positive_ctxs']]
-    test['positive_ctxs'] = test['positive_ctxs'].apply(
-        lambda x: [x]
-    )
-
     test.to_json(
         os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'test.json'),
         orient='records'
@@ -92,6 +88,30 @@ def wiki_parsed():
         os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'embeddings.json'),
         orient='records'
     )
+
+
+def lengths():
+    df = pd.read_csv(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'source', 'subset.tsv.gz'),
+        sep='\t'
+    )
+
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+
+    for col in df.columns:
+        df[col] = df[col].apply(
+            lambda x: len(tokenizer.encode(x))
+        )
+        print(f'{col} done!')
+
+    plt.hist(df['query'], bins=100)
+    plt.show()
+
+    plt.hist(df['positive_passage'], bins=100)
+    plt.show()
+
+    plt.hist(df['negative_passage'], bins=100)
+    plt.show()
 
 
 def main():

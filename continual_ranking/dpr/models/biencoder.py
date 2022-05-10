@@ -1,6 +1,5 @@
 import logging
-import time
-from typing import Tuple
+from typing import Tuple, Union
 
 import pytorch_lightning as pl
 import torch
@@ -9,6 +8,7 @@ from torch import Tensor
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 
+from continual_ranking.dpr.data import TokenizedIndexSample, TokenizedTrainingSample
 from continual_ranking.dpr.models.encoder import Encoder
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,6 @@ class BiEncoder(pl.LightningModule):
     def __init__(self, cfg, max_iterations: int):
         super().__init__()
         self.cfg = cfg
-        self.automatic_optimization = False
 
         self.question_model: Encoder = Encoder.init_encoder()
         self.context_model: Encoder = Encoder.init_encoder()
@@ -31,18 +30,33 @@ class BiEncoder(pl.LightningModule):
         self.max_iterations = max_iterations
         self.scheduler = None
 
-        self.training_correct_predictions = 0
-        self.validation_correct_predictions = 0
-        self.test_correct_predictions = 0
-
-        self.epoch_training_loss = 0
-        self.epoch_validation_loss = 0
-        self.rolling_training_loss = 0
-        self.rolling_validation_loss = 0
+        self.train_loss_roll = 0
+        self.train_loss_epoch = 0
+        self.train_acc_roll = 0
+        self.train_acc_step = 0
         self.train_length = 0
         self.train_length_met = 0
+
+        self.val_acc_roll = 0
+        self.val_acc_step = 0
+        self.val_loss_epoch = 0
+        self.val_loss_roll = 0
         self.val_length = 0
         self.val_length_met = 0
+
+        self.test_loss_roll = 0
+        self.test_loss_epoch = 0
+        self.test_acc_roll = 0
+        self.test_acc_step = 0
+        self.test_length = 0
+        self.test_length_met = 0
+
+        self.experiment_id = -1
+
+        self.index: Union[list, torch.Tensor] = []
+        self.index_mode = False
+        self.test = []
+        self.test_mode = False
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
@@ -90,15 +104,11 @@ class BiEncoder(pl.LightningModule):
             },
         ]
         optimizer = AdamW(parameters, lr=self.cfg.biencoder.learning_rate, eps=self.cfg.biencoder.adam_eps)
-        self.configure_scheduler(optimizer)
+        # self.configure_scheduler(optimizer)
         return optimizer
 
     @staticmethod
-    def calculate_loss(
-            q_vectors: Tensor,
-            ctx_vectors: Tensor,
-            positive_ctx_indices: list,
-    ):
+    def calculate_loss(q_vectors: Tensor, ctx_vectors: Tensor, positive_ctx_indices: list):
         scores = dot_product(q_vectors, ctx_vectors)
 
         if len(q_vectors.size()) > 1:
@@ -118,7 +128,7 @@ class BiEncoder(pl.LightningModule):
 
         return loss, correct_predictions.sum().item()
 
-    def _shared_step(self, batch, batch_idx):
+    def _shared_step(self, batch: TokenizedTrainingSample, batch_idx):
         self.log('global_step', float(self.global_step))
 
         q_pooled_out, ctx_pooled_out = self.forward(batch)
@@ -133,89 +143,119 @@ class BiEncoder(pl.LightningModule):
 
         return loss, correct_predictions
 
-    def training_step(self, batch, batch_idx):
-        start = time.time()
-
-        optimizers = self.optimizers()
-        optimizers.zero_grad()
-
+    def training_step(self, batch: TokenizedTrainingSample, batch_idx):
         loss, correct_predictions = self._shared_step(batch, batch_idx)
 
-        self.manual_backward(loss)
-        optimizers.step()
-        self.scheduler.step()
+        self.train_loss_epoch += loss.item()
+        self.train_loss_roll += loss.item()
 
-        end = time.time()
-
-        self.epoch_training_loss += loss.item()
-        self.rolling_training_loss += loss.item()
-
-        self.training_correct_predictions += correct_predictions
-        self.train_length_met += self.cfg.biencoder.batch_size
+        self.train_acc_roll += correct_predictions
+        self.train_acc_step += correct_predictions
+        self.train_length_met += self.cfg.biencoder.train_batch_size
 
         self.log('train_loss_step', loss)
-        self.log('train_loss_roll', self.rolling_training_loss)
-        self.log('train_acc_step', correct_predictions / self.cfg.biencoder.batch_size)
-        self.log('train_acc_roll', self.training_correct_predictions / self.train_length_met)
-
-        self.log('train_time_step', end - start)
+        self.log('train_loss_roll', self.train_loss_roll)
+        self.log('train_acc_roll', self.train_acc_roll / self.train_length_met)
 
         if self.global_step % 500 == 0:
-            self.rolling_training_loss = 0
+            self.train_loss_roll = 0
+
+        if self.global_step % 100 == 0:
+            self.log('train_acc_step', self.train_acc_step / (100 * self.cfg.biencoder.train_batch_size))
+            self.train_acc_step = 0
 
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        start = time.time()
-
+    def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
         loss, correct_predictions = self._shared_step(batch, batch_idx)
 
-        end = time.time()
-
-        self.epoch_validation_loss += loss.item()
-        self.rolling_validation_loss += loss.item()
-        self.validation_correct_predictions += correct_predictions
-        self.val_length_met += self.cfg.biencoder.eval_batch_size
+        self.val_loss_epoch += loss.item()
+        self.val_loss_roll += loss.item()
+        self.val_acc_roll += correct_predictions
+        self.val_acc_step += correct_predictions
+        self.val_length_met += self.cfg.biencoder.val_batch_size
 
         self.log('val_loss', loss, on_step=True)
-        self.log('val_loss_roll', self.rolling_validation_loss)
-        self.log('val_acc_step', correct_predictions / self.cfg.biencoder.eval_batch_size)
-        self.log('val_acc_roll', self.validation_correct_predictions / self.val_length_met)
-
-        self.log('val_step_time', end - start, on_step=True)
+        self.log('val_loss_roll', self.val_loss_roll)
+        self.log('val_acc_roll', self.val_acc_roll / self.val_length_met)
 
         if self.global_step % 100 == 0:
-            self.rolling_training_loss = 0
+            self.val_loss_roll = 0
+
+            self.log('val_acc_step', self.val_acc_step / (100 * self.cfg.biencoder.val_batch_size))
+            self.val_acc_step = 0
+
+        return loss
+
+    def _index_step(self, batch: TokenizedIndexSample):
+        index_pooled_out = self.context_model.forward(
+            batch.input_ids,
+            batch.token_type_ids,
+            batch.attention_mask,
+        )
+
+        self.index.append(index_pooled_out.to('cpu'))
+
+    def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
+        loss, correct_predictions = self._shared_step(batch, batch_idx)
+
+        self.test_loss_epoch += loss.item()
+        self.test_loss_roll += loss.item()
+        self.test_acc_roll += correct_predictions
+        self.test_acc_step += correct_predictions
+        self.test_length_met += self.cfg.biencoder.test_batch_size
+
+        self.log('test_loss', loss, on_step=True)
+        self.log('test_loss_roll', self.test_loss_roll)
+        self.log('test_acc_roll', self.test_acc_roll / self.test_length_met)
+
+        if self.global_step % 100 == 0:
+            self.test_loss_roll = 0
+
+            self.log('test_acc_step', self.test_acc_step / (100 * self.cfg.biencoder.test_batch_size))
+            self.test_acc_step = 0
+
+        test_pooled_out = self.question_model.forward(
+            batch.question_ids,
+            batch.question_segments,
+            batch.question_attn_mask,
+        )
+
+        self.test.append(dot_product(test_pooled_out.to('cpu'), self.index))
 
         return loss
 
     def test_step(self, batch, batch_idx):
-        loss, correct_predictions = self._shared_step(batch, batch_idx)
-
-        self.log('test_loss', loss)
-        self.test_correct_predictions += correct_predictions
-
-        return loss
+        if self.index_mode:
+            self._index_step(batch)
+        else:
+            self._test_step(batch, batch_idx)
 
     def on_after_backward(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)
 
     def on_train_epoch_end(self) -> None:
-        self.log('train_loss_epoch', self.epoch_training_loss)
-        self.log('train_acc_epoch', self.training_correct_predictions / self.train_length)
+        self.log('train_loss_epoch', self.train_loss_epoch)
+        self.log('train_acc_epoch', self.train_acc_roll / self.train_length)
 
     def on_train_epoch_start(self) -> None:
-        self.training_correct_predictions = 0
+        self.log('experiment_id', self.experiment_id)
+        self.train_acc_roll = 0
         self.train_length_met = 0
-        self.epoch_training_loss = 0
-        self.rolling_training_loss = 0
+        self.train_loss_epoch = 0
+        self.train_loss_roll = 0
 
     def on_validation_epoch_end(self) -> None:
-        self.log('val_loss_epoch', self.epoch_validation_loss)
-        self.log('val_acc_epoch', self.validation_correct_predictions / self.val_length)
+        self.log('val_loss_epoch', self.val_loss_epoch)
+        self.log('val_acc_epoch', self.val_acc_roll / self.val_length)
+
+    def on_test_epoch_end(self) -> None:
+        if not self.index_mode:
+            self.log('test_loss_epoch', self.test_loss_epoch)
+            self.log('test_acc_epoch', self.test_acc_roll / self.test_length)
 
     def on_validation_epoch_start(self) -> None:
-        self.validation_correct_predictions = 0
+        self.val_acc_roll = 0
         self.val_length_met = 0
-        self.epoch_validation_loss = 0
-        self.rolling_validation_loss = 0
+        self.val_loss_epoch = 0
+        self.val_loss_roll = 0

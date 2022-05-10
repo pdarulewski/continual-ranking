@@ -1,7 +1,7 @@
 # @package datasets
 train: data/MSMARCO/passages/train.json
-val: data/MSMARCO/passages/eval.json
+val: data/MSMARCO/passages/val.json
+index: data/MSMARCO/passages/index.json
 test: data/MSMARCO/passages/test.json
-embeddings: data/MSMARCO/passages/embeddings.json
 
 split_size: 0.2

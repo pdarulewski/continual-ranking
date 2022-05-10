@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch.utils import data
 
 from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
-from continual_ranking.continual_learning.strategies.strategy import Strategy
+from continual_ranking.continual_learning.strategy import Strategy
 
 
 class GEM(Strategy):
