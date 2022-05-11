@@ -8,7 +8,8 @@ from torch import Tensor
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 
-from continual_ranking.dpr.data import TokenizedIndexSample, TokenizedTrainingSample
+from continual_ranking.dpr.data.index_dataset import TokenizedIndexSample
+from continual_ranking.dpr.data.train_dataset import TokenizedTrainingSample
 from continual_ranking.dpr.models.encoder import Encoder
 
 logger = logging.getLogger(__name__)

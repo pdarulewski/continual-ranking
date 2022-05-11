@@ -9,7 +9,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
-from continual_ranking.dpr.data import DataModule
+from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.data.evaluator import Evaluator
 from continual_ranking.dpr.data.file_handler import pickle_dump
 from continual_ranking.dpr.models import BiEncoder
