@@ -1,15 +1,16 @@
 from typing import Dict
 
 import torch
-from torch import Tensor
+from tqdm import tqdm
 
+from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.data.file_handler import pickle_load
 from continual_ranking.dpr.models.biencoder import dot_product
 
 
 class Evaluator:
 
-    def __init__(self, index_dataset, index_path: str, test_dataset, test_path: str):
+    def __init__(self, index_dataset, index_path: str, test_dataset, test_path: str, device: str):
         self.index_dataset = index_dataset
         self.test_dataset = test_dataset
 
@@ -19,18 +20,18 @@ class Evaluator:
         self.k = [5] + list(range(10, 110, 10))
         self.top_k_docs = {k: 0 for k in self.k}
 
-    def _index_test_dot_product(self):
-        index = pickle_load(self.index_path)
-        test = pickle_load(self.test_path)
-        scores = dot_product(index, test)
-        return scores
+        self.device = device
 
-    def _calculate_k_docs(self, scores: Tensor) -> None:
-        for i, sample in enumerate(scores):
+    def _calculate_k_docs(self) -> None:
+        test = pickle_load(self.test_path).to(self.device)
+        index = pickle_load(self.index_path).to(self.device)
+
+        for i, sample in enumerate(tqdm(test)):
+            scores = dot_product(sample, index)
+
             for k in self.k:
-                top_items = torch.topk(scores[i], k).indices
-                # FIXME: process that in batches
-                positive = self.test_dataset[i * 16].context_ids[i % 16][0]
+                top_items = torch.topk(scores, k).indices
+                positive = self.test_dataset[i].context_ids[0]
 
                 for j in top_items:
                     if torch.equal(self.index_dataset[j].input_ids, positive.to('cpu')):
@@ -43,7 +44,6 @@ class Evaluator:
         return {f'k_acc_{key}': value for key, value in self.top_k_docs.items()}
 
     def evaluate(self) -> Dict[str, float]:
-        scores = self._index_test_dot_product()
-        self._calculate_k_docs(scores)
+        self._calculate_k_docs()
         k_scores = self._calculate_acc()
         return k_scores

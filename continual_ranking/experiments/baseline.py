@@ -182,7 +182,8 @@ class Baseline(Experiment):
     def evaluate(self):
         evaluator = Evaluator(
             self.index_dataloader.dataset, self.index_path,
-            self.test_dataloader.dataset, self.test_path
+            self.test_dataloader.dataset, self.test_path,
+            'cuda:0' if self.cfg.device == 'gpu' else 'cpu'
         )
         scores = evaluator.evaluate()
         wandb.log(scores)
