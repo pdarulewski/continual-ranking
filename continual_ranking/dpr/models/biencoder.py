@@ -4,13 +4,11 @@ from typing import Tuple, Union
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-import wandb
 from torch import Tensor
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 
 from continual_ranking.dpr.data import TokenizedIndexSample, TokenizedTrainingSample
-from continual_ranking.dpr.data.evaluator import Evaluator
 from continual_ranking.dpr.models.encoder import Encoder
 
 logger = logging.getLogger(__name__)
@@ -57,8 +55,6 @@ class BiEncoder(pl.LightningModule):
         self.index_mode = False
         self.test = []
         self.test_mode = False
-
-        self.evaluator = Evaluator()
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
@@ -143,10 +139,10 @@ class BiEncoder(pl.LightningModule):
             positives_idx,
         )
 
-        return loss, correct_predictions
+        return loss, correct_predictions, q_pooled_out
 
     def training_step(self, batch: TokenizedTrainingSample, batch_idx):
-        loss, correct_predictions = self._shared_step(batch, batch_idx)
+        loss, correct_predictions, _ = self._shared_step(batch, batch_idx)
 
         self.train_loss_epoch += loss.item()
         self.train_loss_roll += loss.item()
@@ -169,7 +165,7 @@ class BiEncoder(pl.LightningModule):
         return loss
 
     def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
-        loss, correct_predictions = self._shared_step(batch, batch_idx)
+        loss, correct_predictions, _ = self._shared_step(batch, batch_idx)
 
         self.val_loss_epoch += loss.item()
         self.val_loss_roll += loss.item()
@@ -199,7 +195,7 @@ class BiEncoder(pl.LightningModule):
         self.index.append(index_pooled_out.to('cpu'))
 
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
-        loss, correct_predictions = self._shared_step(batch, batch_idx)
+        loss, correct_predictions, q_pooled_out = self._shared_step(batch, batch_idx)
 
         self.test_loss_epoch += loss.item()
         self.test_loss_roll += loss.item()
@@ -217,15 +213,7 @@ class BiEncoder(pl.LightningModule):
             self.log('test_acc_step', self.test_acc_step / (100 * self.cfg.biencoder.test_batch_size))
             self.test_acc_step = 0
 
-        test_pooled_out = self.question_model.forward(
-            batch.question_ids,
-            batch.question_segments,
-            batch.question_attn_mask,
-        )
-
-        scores = dot_product(test_pooled_out.to('cpu'), self.index)
-
-        self.evaluator.calculate_k_docs(scores, batch)
+        self.test.append(q_pooled_out.to('cpu'))
 
         return loss
 
@@ -259,8 +247,7 @@ class BiEncoder(pl.LightningModule):
         else:
             self.log('test_loss_epoch', self.test_loss_epoch)
             self.log('test_acc_epoch', self.test_acc_roll / self.test_length)
-            scores = self.evaluator.calculate_acc(self.test_length)
-            wandb.log(scores)
+            self.test = torch.cat(self.test)
 
     def on_validation_epoch_start(self) -> None:
         self.val_acc_roll = 0

@@ -1,18 +1,17 @@
 import logging
 import math
 import os
-import pickle
 import time
 
-import torch
 import wandb
 from omegaconf import OmegaConf, DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
 from continual_ranking.dpr.data import DataModule
 from continual_ranking.dpr.data.evaluator import Evaluator
+from continual_ranking.dpr.data.file_handler import pickle_dump
 from continual_ranking.dpr.models import BiEncoder
 from continual_ranking.experiments.experiment import Experiment
 
@@ -149,10 +148,11 @@ class Baseline(Experiment):
         self.trainer.test(self.model, self.index_dataloader)
         self.model.index_mode = False
 
-        with open(f'index_{self.cfg.experiment_name}_{self.experiment_id}', 'wb') as f:
-            pickle.dump(self.model.index, f)
+        logger.info(f'Index shape: {self.model.index.shape}')
 
-        self.model.evaluator.index_dataset = self.index_dataloader.dataset
+        self.index_path = f'index_{self.cfg.experiment_name}_{self.experiment_id}'
+        pickle_dump(self.model.index, self.index_path)
+        del self.model.index
 
         self.alert(
             title=f'Indexing finished!',
@@ -167,10 +167,24 @@ class Baseline(Experiment):
 
         self.trainer.test(self.model, self.test_dataloader)
 
+        logger.info(f'Test shape: {self.model.test.shape}')
+
+        self.test_path = f'test_{self.cfg.experiment_name}_{self.experiment_id}'
+        pickle_dump(self.model.test, self.test_path)
+        del self.model.test
+
         self.alert(
             title=f'Testing finished!',
             text=f'Tested {self.model.test_length} samples'
         )
+
+    def evaluate(self):
+        evaluator = Evaluator(
+            self.index_dataloader.dataset, self.index_path,
+            self.test_dataloader.dataset, self.test_path
+        )
+        scores = evaluator.evaluate()
+        wandb.log(scores)
 
     def run_testing(self):
         self._encode_dataset()
