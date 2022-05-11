@@ -151,13 +151,14 @@ class Baseline(Experiment):
         logger.info(f'Index shape: {self.model.index.shape}')
 
         self.index_path = f'index_{self.cfg.experiment_name}_{self.experiment_id}'
-        pickle_dump(self.model.index, self.index_path)
-        del self.model.index
 
         self.alert(
             title=f'Indexing finished!',
             text=f'Indexed {len(self.model.index)} samples'
         )
+
+        pickle_dump(self.model.index, self.index_path)
+        del self.model.index
 
     def _test(self):
         self.alert(title=f'Testing for {self.cfg.experiment_name} started!')
@@ -169,14 +170,14 @@ class Baseline(Experiment):
 
         logger.info(f'Test shape: {self.model.test.shape}')
 
-        self.test_path = f'test_{self.cfg.experiment_name}_{self.experiment_id}'
-        pickle_dump(self.model.test, self.test_path)
-        del self.model.test
-
         self.alert(
             title=f'Testing finished!',
             text=f'Tested {self.model.test_length} samples'
         )
+
+        self.test_path = f'test_{self.cfg.experiment_name}_{self.experiment_id}'
+        pickle_dump(self.model.test, self.test_path)
+        del self.model.test
 
     def evaluate(self):
         evaluator = Evaluator(
