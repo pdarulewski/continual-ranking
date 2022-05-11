@@ -1,7 +1,8 @@
+import os
 from typing import Dict
 
 import torch
-from tqdm import tqdm
+from torch.multiprocessing.pool import Pool
 
 from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.data.file_handler import pickle_load
@@ -25,17 +26,24 @@ class Evaluator:
     def _calculate_k_docs(self) -> None:
         test = pickle_load(self.test_path).to(self.device)
         index = pickle_load(self.index_path).to(self.device)
+        scores = dot_product(test, index)
 
-        for i, sample in enumerate(tqdm(test)):
-            scores = dot_product(sample, index)
+        scores = zip(scores, list(range(len(scores))))
 
-            for k in self.k:
-                top_items = torch.topk(scores, k).indices
-                positive = self.test_dataset[i].context_ids[0]
+        pool = Pool(os.cpu_count())
+        pool.map(self._k_docs, scores)
 
-                for j in top_items:
-                    if torch.equal(self.index_dataset[j].input_ids, positive.to('cpu')):
-                        self.top_k_docs[k] += 1
+    def _k_docs_wrapper(self, args):
+        self._k_docs(*args)
+
+    def _k_docs(self, sample, i):
+        for k in self.k:
+            top_items = torch.topk(sample, k).indices
+            positive = self.test_dataset[i].context_ids[0]
+
+            for j in top_items:
+                if torch.equal(self.index_dataset[j].input_ids, positive.to('cpu')):
+                    self.top_k_docs[k] += 1
 
     def _calculate_acc(self) -> Dict[str, float]:
         for key in self.top_k_docs:
