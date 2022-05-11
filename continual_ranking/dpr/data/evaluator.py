@@ -20,7 +20,7 @@ class Evaluator:
                 positive = batch.context_ids[i][0]
 
                 for j in top_items:
-                    if torch.equal(self.index_dataset[j].input_ids, positive):
+                    if torch.equal(self.index_dataset[j].input_ids, positive.to('cpu')):
                         self.top_k_docs[k] += 1
 
     def calculate_acc(self, test_length: int) -> Dict[str, float]:
