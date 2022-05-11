@@ -54,6 +54,8 @@ def wiki_parsed():
         sep='\t'
     )
 
+    df = df.drop_duplicates(['positive_passage'])
+
     df.columns = ['question', 'positive_ctxs', 'negative_ctxs']
 
     embeddings = df.copy(True)
