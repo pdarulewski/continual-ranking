@@ -11,9 +11,9 @@ device: gpu
 fast_dev_run: false
 logging_on: false
 
-experiment_name: test_fit_loop
+experiment_name: baseline_25k
 
-negatives_amount: 2
+negatives_amount: 6
 
 strategy: baseline
 #  strategy: naive
@@ -21,7 +21,7 @@ strategy: baseline
 #  strategy: gem
 #  strategy: rehearsal
 
-sizes: [ 0, 5, 10 ]
+sizes: [ 0, 20_000, 25_000 ]
 #  sizes: [ 0, 20_000, 25_000, 30_000 ]
 #  sizes: [ 0, 20_000, 25_000, 30_000, 35_000 ]
 #  sizes: [ 0, 20_000, 25_000, 30_000, 35_000, 40_000 ]
