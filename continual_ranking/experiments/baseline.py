@@ -179,7 +179,7 @@ class Baseline(Experiment):
         pickle_dump(self.model.test, self.test_path)
         del self.model.test
 
-    def evaluate(self):
+    def _evaluate(self):
         evaluator = Evaluator(
             self.index_dataloader.dataset, self.index_path,
             self.test_dataloader.dataset, self.test_path,
@@ -191,3 +191,4 @@ class Baseline(Experiment):
     def run_testing(self):
         self._encode_dataset()
         self._test()
+        self._evaluate()

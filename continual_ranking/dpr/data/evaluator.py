@@ -1,11 +1,31 @@
 from typing import Dict
 
+import numba
+import numba.cuda
 import torch
-import tqdm
 
 from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.data.file_handler import pickle_load
 from continual_ranking.dpr.models.biencoder import dot_product
+
+
+@numba.jit(parallel=True)
+def _k_docs(scores, index_dataset, test_dataset):
+    full_k = [5] + list(range(10, 110, 10))
+    top_k_docs = {k: 0 for k in full_k}
+
+    for i in numba.prange(scores):
+        for k in full_k:
+            top_items = torch.topk(scores[i], k).indices
+            positive = test_dataset[i].context_ids[0]
+            for j in top_items:
+                if torch.equal(index_dataset[j].input_ids, positive):
+                    top_k_docs[k] += 1
+
+        if i % 100 == 0:
+            print(i)
+
+    return top_k_docs
 
 
 class Evaluator:
@@ -25,18 +45,10 @@ class Evaluator:
     def _calculate_k_docs(self) -> None:
         test = pickle_load(self.test_path).to(self.device)
         index = pickle_load(self.index_path).to(self.device)
-        scores = dot_product(test, index)
 
-        self._k_docs(scores)
+        scores = dot_product(test, index).numpy()
 
-    def _k_docs(self, scores):
-        for i, sample in enumerate(tqdm.tqdm(scores)):
-            for k in self.k:
-                top_items = torch.topk(sample, k).indices
-                positive = self.test_dataset[i].context_ids[0]
-                for j in top_items:
-                    if torch.equal(self.index_dataset[j].input_ids, positive):
-                        self.top_k_docs[k] += 1
+        self.top_k_docs = _k_docs(scores, self.index_dataset, self.test_dataset)
 
     def _calculate_acc(self) -> Dict[str, float]:
         return {f'k_acc_{key}': value / len(self.test_dataset) for key, value in self.top_k_docs.items()}
