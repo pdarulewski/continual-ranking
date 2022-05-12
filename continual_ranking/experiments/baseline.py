@@ -25,6 +25,8 @@ class Baseline(Experiment):
         self.fast_dev_run = cfg.fast_dev_run
         self.logging_on = cfg.logging_on
         self.experiment_id = 0
+        self.index_path = ''
+        self.test_path = ''
 
     def alert(self, title: str, text: str = ''):
         if self.logging_on:
