@@ -18,7 +18,7 @@ class Evaluator:
         self.index_path = index_path
         self.test_path = test_path
 
-        self.k = [5, 10, 20, 50, 100]
+        self.k = [100, 50, 20, 10, 5]
         self.top_k_docs = {k: 0 for k in self.k}
 
         self.device = device
@@ -32,17 +32,19 @@ class Evaluator:
         self._k_docs()
 
     def _k_docs(self):
-        index_data = [i for i in self.index_dataset]
+        top_items = self.scores
         for k in self.k:
-            top_items = torch.topk(self.scores, k).indices
-            top_items = top_items.numpy()
+            top_items = torch.topk(top_items, k)
+            top_indices = top_items.indices
 
-            for i, sample in enumerate(tqdm.tqdm(top_items)):
+            for i, sample in enumerate(tqdm.tqdm(top_indices)):
                 positive = self.test_dataset[i].context_ids[0]
 
                 for j in sample:
                     if torch.equal(self.index_dataset[j].input_ids, positive):
                         self.top_k_docs[k] += 1
+
+            top_items = top_items.values
 
     def _calculate_acc(self) -> Dict[str, float]:
         return {f'k_acc_{key}': value / len(self.test_dataset) for key, value in self.top_k_docs.items()}
