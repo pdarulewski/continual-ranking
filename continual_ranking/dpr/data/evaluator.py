@@ -1,8 +1,7 @@
 from typing import Dict
 
-import numpy as np
 import torch
-import tqdm
+from transformers import BertTokenizer
 
 from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.data.file_handler import pickle_load
@@ -11,14 +10,16 @@ from continual_ranking.dpr.models.biencoder import dot_product
 
 class Evaluator:
 
-    def __init__(self, index_dataset, index_path: str, test_dataset, test_path: str, device: str):
+    def __init__(self, max_length: int, index_dataset, index_path: str, test_dataset, test_path: str, device: str):
+        self.max_length = max_length
+
         self.index_dataset = index_dataset
         self.test_dataset = test_dataset
 
         self.index_path = index_path
         self.test_path = test_path
 
-        self.k = [100, 50, 20, 10, 5]
+        self.k = [5] + list(range(10, 110, 10))
         self.top_k_docs = {k: 0 for k in self.k}
 
         self.device = device
@@ -32,43 +33,47 @@ class Evaluator:
         self._k_docs()
 
     def _k_docs(self):
-        top_items = self.scores
-        for k in self.k:
-            top_items = torch.topk(top_items, k)
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+
+        questions = [i['positive_ctxs'][0] for i in self.test_dataset.data]
+
+        questions = tokenizer(
+            questions,
+            add_special_tokens=True,
+            max_length=self.max_length,
+            padding='max_length',
+            truncation=True,
+            return_tensors='pt',
+            return_attention_mask=False,
+            return_token_type_ids=False,
+        ).input_ids
+
+        answers = [i['positive_ctxs'] for i in self.index_dataset.data]
+
+        answers = tokenizer(
+            answers,
+            add_special_tokens=True,
+            max_length=self.max_length,
+            padding='max_length',
+            truncation=True,
+            return_tensors='pt',
+            return_attention_mask=False,
+            return_token_type_ids=False
+        ).input_ids
+
+        for k in self.top_k_docs:
+            top_items = torch.topk(self.scores, k)
             top_indices = top_items.indices
 
-            for i, sample in enumerate(tqdm.tqdm(top_indices)):
-                positive = self.test_dataset[i].context_ids[0]
+            for i, row in enumerate(top_indices):
+                results: torch.Tensor = questions[i] == answers[row]
 
-                for j in sample:
-                    if torch.equal(self.index_dataset[j].input_ids, positive):
+                for b in results:
+                    if b.all():
                         self.top_k_docs[k] += 1
-
-            top_items = top_items.values
 
     def _calculate_acc(self) -> Dict[str, float]:
         return {f'k_acc_{key}': value / len(self.test_dataset) for key, value in self.top_k_docs.items()}
-
-    @staticmethod
-    def average_precision(actual, predicted, k=10):
-        if len(predicted) > k:
-            predicted = predicted[:k]
-
-        score = 0.0
-        num_hits = 0.0
-
-        for i, p in enumerate(predicted):
-            if p in actual and p not in predicted[:i]:
-                num_hits += 1.0
-                score += num_hits / (i + 1.0)
-
-        if not actual:
-            return 0.0
-
-        return score / min(len(actual), k)
-
-    def mean_average_precision(self, actual, predicted, k=10):
-        return np.mean([self.average_precision(a, p, k) for a, p in zip(actual, predicted)])
 
     def evaluate(self) -> Dict[str, float]:
         self._calculate_k_docs()
