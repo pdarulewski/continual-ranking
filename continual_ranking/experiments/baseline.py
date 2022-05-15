@@ -183,6 +183,8 @@ class Baseline(Experiment):
         del self.model.test
 
     def _evaluate(self):
+        self.alert(title=f'Evaluation for {self.experiment_name} started!')
+
         evaluator = Evaluator(
             self.cfg.biencoder.sequence_length,
             self.index_dataloader.dataset, self.index_path,
