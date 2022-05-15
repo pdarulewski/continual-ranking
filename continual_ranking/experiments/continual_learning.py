@@ -17,7 +17,7 @@ class ContinualLearning(Baseline):
 
     def setup_callbacks(self) -> None:
         logger.info('Setting up callbacks')
-        filename = self.cfg.experiment_name
+        filename = self.cfg.experiment.experiment_name
         self.callbacks = [
             ModelCheckpoint(
                 filename=filename + '-{epoch:02d}-{val_loss:.2f}',
@@ -35,11 +35,11 @@ class ContinualLearning(Baseline):
         ]
 
     def setup_strategies(self) -> None:
-        if self.cfg.strategy == 'ewc':
+        if self.cfg.experiment.strategy == 'ewc':
             strategy = EWC(**self.cfg.strategies.ewc)
-        elif self.cfg.strategy == 'gem':
+        elif self.cfg.experiment.strategy == 'gem':
             strategy = GEM(**self.cfg.strategies.ewc)
-        elif self.cfg.strategy == 'naive':
+        elif self.cfg.experiment.strategy == 'naive':
             return
 
         self.callbacks.append(strategy)

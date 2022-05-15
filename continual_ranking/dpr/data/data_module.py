@@ -3,6 +3,7 @@ import random
 from typing import Optional
 
 import hydra
+import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
@@ -25,6 +26,7 @@ class DataModule(pl.LightningDataModule):
         self.eval_sets = None
         self.index_set = None
         self.test_set = None
+        self.strategy = self.cfg.experiment.strategy
 
         self.train_set_length = 0
 
@@ -33,15 +35,30 @@ class DataModule(pl.LightningDataModule):
         random.shuffle(data)
         chunks = []
 
-        chunk_sizes = self.cfg.sizes
+        chunk_sizes = self.cfg.experiment.sizes
 
         if split_size:
             chunk_sizes = [int(size * split_size) for size in chunk_sizes]
 
-        if self.cfg.strategy == 'baseline':
+        if self.strategy == 'baseline':
             chunks = data[:chunk_sizes[-1]]
             chunks = [TrainDataset(chunks, self.cfg.negatives_amount, tokenizer)]
 
+        elif self.strategy == 'rehearsal':
+            # FIXME
+            chunks.append(data[chunk_sizes[0]: chunk_sizes[1]])
+
+            for i in range(1, len(chunk_sizes) - 1):
+                slice_size = int((chunk_sizes[i + 1] - chunk_sizes[i]) * 0.2)
+
+                slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1] - slice_size]
+                chunks.append(slice_)
+
+            rehearsal_data = []
+            for i in range(1, len(chunks) - 1):
+                slice_size = int((chunk_sizes[i + 1] - chunk_sizes[i]) * 0.2)
+                rehearsal = np.random.choice(data[:chunk_sizes[i + 1]], slice_size)
+                rehearsal_data.append(rehearsal)
         else:
             for i in range(len(chunk_sizes) - 1):
                 slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1]]
@@ -60,7 +77,7 @@ class DataModule(pl.LightningDataModule):
         self.eval_sets = self._make_set_splits(self.eval_set_path, train_tokenizer, self.cfg.datasets.split_size)
         self.test_set = TrainDataset(read_json_file(self.test_set_path), self.cfg.negatives_amount, train_tokenizer)
 
-        if self.cfg.strategy == 'baseline':
+        if self.strategy == 'baseline':
             self.train_set_length = len(self.train_sets)
         else:
             self.train_set_length = sum([len(dataset) for dataset in self.train_sets])

@@ -28,6 +28,8 @@ class Baseline(Experiment):
         self.index_path = ''
         self.test_path = ''
 
+        self.experiment_name = self.cfg.experiment.experiment_name
+
     def alert(self, title: str, text: str = ''):
         if self.logging_on:
             wandb.alert(title=title, text=text)
@@ -50,7 +52,7 @@ class Baseline(Experiment):
         wandb.login(key=os.getenv('WANDB_KEY'))
 
         wandb_logger = WandbLogger(
-            name=self.cfg.experiment_name,
+            name=self.experiment_name,
             project=self.cfg.project_name,
             offline=not self.logging_on,
         )
@@ -68,10 +70,9 @@ class Baseline(Experiment):
 
     def setup_callbacks(self) -> None:
         logger.info('Setting up callbacks')
-        filename = self.cfg.experiment_name
         self.callbacks = [
             ModelCheckpoint(
-                filename=filename + '-{epoch:02d}-{val_loss:.2f}',
+                filename=self.experiment_name + '-{epoch:02d}-{val_loss:.2f}',
                 save_top_k=2,
                 monitor='val_loss',
                 mode='min'
@@ -108,7 +109,7 @@ class Baseline(Experiment):
 
     def run_training(self):
         self.alert(
-            title=f'Training for {self.cfg.experiment_name} started!',
+            title=f'Training for {self.experiment_name} started!',
             text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
         )
 
@@ -125,14 +126,14 @@ class Baseline(Experiment):
             logger.info(val_data_len_msg)
 
             self.alert(
-                title=f'Experiment #{i} for {self.cfg.experiment_name} started!',
+                title=f'Experiment #{i} for {self.experiment_name} started!',
                 text=f'{train_data_len_msg}\n{val_data_len_msg}'
             )
 
             self.setup_trainer()
 
             start = time.time()
-            self.trainer.fit(self.model, train_dataloader)
+            self.trainer.fit(self.model, train_dataloader, val_dataloader)
             elapsed = time.time() - start
 
             self.global_step = self.trainer.global_step
@@ -143,7 +144,7 @@ class Baseline(Experiment):
             wandb.log({'training_time': elapsed})
 
     def _encode_dataset(self):
-        self.alert(title=f'Indexing for {self.cfg.experiment_name} started!')
+        self.alert(title=f'Indexing for {self.experiment_name} started!')
         logger.info(f'Index dataloader size: {len(self.index_dataloader.dataset)}')
 
         self.model.index_mode = True
@@ -163,7 +164,7 @@ class Baseline(Experiment):
         del self.model.index
 
     def _test(self):
-        self.alert(title=f'Testing for {self.cfg.experiment_name} started!')
+        self.alert(title=f'Testing for {self.experiment_name} started!')
 
         self.model.test_length = len(self.test_dataloader.dataset)
         logger.info(f'Test dataloader size: {self.model.test_length}')
@@ -183,12 +184,18 @@ class Baseline(Experiment):
 
     def _evaluate(self):
         evaluator = Evaluator(
+            self.cfg.sequence_length,
             self.index_dataloader.dataset, self.index_path,
             self.test_dataloader.dataset, self.test_path,
             'cuda:0' if self.cfg.device == 'gpu' else 'cpu'
         )
         scores = evaluator.evaluate()
         wandb.log(scores)
+
+        self.alert(
+            title=f'Evaluation finished!',
+            text=f'```{scores}```'
+        )
 
     def run_testing(self):
         self._encode_dataset()

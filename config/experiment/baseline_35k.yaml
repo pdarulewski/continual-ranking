@@ -1,0 +1,3 @@
+experiment_name: baseline_35k
+strategy: baseline
+sizes: [ 0, 20_000, 25_000, 30_000, 35_000 ]
