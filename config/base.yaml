@@ -11,7 +11,7 @@ device: gpu
 fast_dev_run: false
 logging_on: false
 
-experiment_name: baseline_25k
+experiment_name: baseline_20k
 
 negatives_amount: 6
 
@@ -21,7 +21,9 @@ strategy: baseline
 #  strategy: gem
 #  strategy: rehearsal
 
-sizes: [ 0, 20_000, 25_000 ]
-#  sizes: [ 0, 20_000, 25_000, 30_000 ]
-#  sizes: [ 0, 20_000, 25_000, 30_000, 35_000 ]
-#  sizes: [ 0, 20_000, 25_000, 30_000, 35_000, 40_000 ]
+sizes: [ 0, 20_000 ]
+#sizes: [ 0, 20_000, 25_000 ]
+#sizes: [ 0, 20_000, 25_000, 30_000 ]
+#sizes: [ 0, 20_000, 25_000, 30_000, 35_000 ]
+#sizes: [ 0, 20_000, 25_000, 30_000, 35_000, 40_000 ]
+#sizes: [ 0, 20_000, 25_000, 30_000, 35_000, 40_000, 45_000 ]
