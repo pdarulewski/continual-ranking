@@ -39,7 +39,7 @@ class ContinualLearning(Baseline):
             strategy = EWC(**self.cfg.strategies.ewc)
         elif self.cfg.strategy == 'gem':
             strategy = GEM(**self.cfg.strategies.ewc)
-        else:
+        elif self.cfg.strategy == 'naive':
             return
 
         self.callbacks.append(strategy)
