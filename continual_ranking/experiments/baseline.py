@@ -28,7 +28,7 @@ class Baseline(Experiment):
         self.index_path = ''
         self.test_path = ''
 
-        self.experiment_name = self.cfg.experiment.experiment_name
+        self.experiment_name = self.cfg.experiment.name
 
     def alert(self, title: str, text: str = ''):
         if self.logging_on:
@@ -153,7 +153,7 @@ class Baseline(Experiment):
 
         logger.info(f'Index shape: {self.model.index.shape}')
 
-        self.index_path = f'index_{self.cfg.experiment_name}_{self.experiment_id}'
+        self.index_path = f'index_{self.experiment_name}_{self.experiment_id}'
 
         self.alert(
             title=f'Indexing finished!',
@@ -178,7 +178,7 @@ class Baseline(Experiment):
             text=f'Tested {self.model.test_length} samples'
         )
 
-        self.test_path = f'test_{self.cfg.experiment_name}_{self.experiment_id}'
+        self.test_path = f'test_{self.experiment_name}_{self.experiment_id}'
         pickle_dump(self.model.test, self.test_path)
         del self.model.test
 

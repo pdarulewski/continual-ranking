@@ -17,7 +17,7 @@ class ContinualLearning(Baseline):
 
     def setup_callbacks(self) -> None:
         logger.info('Setting up callbacks')
-        filename = self.cfg.experiment.experiment_name
+        filename = self.cfg.experiment.name
         self.callbacks = [
             ModelCheckpoint(
                 filename=filename + '-{epoch:02d}-{val_loss:.2f}',
