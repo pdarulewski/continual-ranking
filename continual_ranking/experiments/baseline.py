@@ -22,17 +22,6 @@ class Baseline(Experiment):
 
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg=cfg)
-        self.fast_dev_run = cfg.fast_dev_run
-        self.logging_on = cfg.logging_on
-        self.experiment_id = 0
-        self.index_path = ''
-        self.test_path = ''
-
-        self.experiment_name = self.cfg.experiment.name
-
-    def alert(self, title: str, text: str = ''):
-        if self.logging_on:
-            wandb.alert(title=title, text=text)
 
     def prepare_dataloaders(self) -> None:
         logger.info('Setting up dataloaders')

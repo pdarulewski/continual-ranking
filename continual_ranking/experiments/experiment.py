@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Union, Optional, Iterable, Any
 
 import pytorch_lightning as pl
+import wandb
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
@@ -29,6 +30,18 @@ class Experiment(ABC):
         self.epochs_completed = 0
 
         self.cfg = cfg
+
+        self.fast_dev_run = cfg.fast_dev_run
+        self.logging_on = cfg.logging_on
+        self.experiment_id = 0
+        self.index_path = ''
+        self.test_path = ''
+
+        self.experiment_name = self.cfg.experiment.name
+
+    def alert(self, title: str, text: str = '', **kwargs):
+        if self.logging_on:
+            wandb.alert(title=title, text=text, **kwargs)
 
     @abstractmethod
     def prepare_dataloaders(self) -> None:
@@ -71,6 +84,15 @@ class Experiment(ABC):
         """Run testing loop"""
 
     def execute(self):
-        self.setup()
-        self.run_training()
-        self.run_testing()
+        try:
+            self.setup()
+            self.run_training()
+            self.run_testing()
+
+        except Exception as e:
+            self.alert(
+                title='Run has crashed!',
+                text=f'Error: {e}',
+                level=wandb.AlertLevel.ERROR
+            )
+            raise
