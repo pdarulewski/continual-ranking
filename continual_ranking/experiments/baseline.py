@@ -184,7 +184,7 @@ class Baseline(Experiment):
 
     def _evaluate(self):
         evaluator = Evaluator(
-            self.cfg.sequence_length,
+            self.cfg.biencoder.sequence_length,
             self.index_dataloader.dataset, self.index_path,
             self.test_dataloader.dataset, self.test_path,
             'cuda:0' if self.cfg.device == 'gpu' else 'cpu'
