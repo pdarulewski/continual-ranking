@@ -2,26 +2,63 @@ import logging
 import math
 import os
 import time
+from typing import List, Union, Optional, Iterable, Any
 
+import pytorch_lightning as pl
 import wandb
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig
+from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
+from torch.utils.data import DataLoader
 
+from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
+from continual_ranking.continual_learning.ewc import EWC
+from continual_ranking.continual_learning.gem import GEM
 from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.data.evaluator import Evaluator
 from continual_ranking.dpr.data.file_handler import pickle_dump
 from continual_ranking.dpr.models import BiEncoder
-from continual_ranking.experiments.experiment import Experiment
 
 logger = logging.getLogger(__name__)
 
 
-class Baseline(Experiment):
+class Experiment:
 
     def __init__(self, cfg: DictConfig):
-        super().__init__(cfg=cfg)
+        self.model: Optional[pl.LightningModule] = None
+        self.datamodule: Optional[DataModule] = None
+        self.strategies: Optional[Iterable[pl.Callback]] = None
+        self.loggers: list = []
+
+        self.trainer: Optional[Union[ContinualTrainer, Any]] = None
+
+        self.train_dataloader: Union[DataLoader, List[DataLoader]] = []
+        self.val_dataloader: Union[DataLoader, List[DataLoader]] = []
+        self.index_dataloader: Union[DataLoader, List[DataLoader]] = []
+        self.test_dataloader: Union[DataLoader, List[DataLoader]] = []
+
+        self.callbacks: List[pl.Callback] = []
+
+        self.global_step = 0
+        self.epochs_completed = 0
+
+        self.cfg = cfg
+
+        self.fast_dev_run = cfg.fast_dev_run
+        self.logging_on = cfg.logging_on
+        self.experiment_id = 0
+        self.index_path = ''
+        self.test_path = ''
+
+        self.experiment_name = self.cfg.experiment.name
+
+        self.experiment_time = 0
+
+    def alert(self, title: str, text: str = '', **kwargs):
+        if self.logging_on:
+            wandb.alert(title=title, text=text, **kwargs)
 
     def prepare_dataloaders(self) -> None:
         logger.info('Setting up dataloaders')
@@ -94,7 +131,14 @@ class Baseline(Experiment):
         self.trainer.fit_loop.epoch_progress.current.completed = self.epochs_completed
 
     def setup_strategies(self) -> None:
-        pass
+        if self.cfg.experiment.strategy == 'ewc':
+            strategy = EWC(**self.cfg.strategies.ewc)
+        elif self.cfg.experiment.strategy == 'gem':
+            strategy = GEM(**self.cfg.strategies.ewc)
+        else:
+            return
+
+        self.callbacks.append(strategy)
 
     def run_training(self):
         self.alert(
@@ -123,14 +167,19 @@ class Baseline(Experiment):
 
             start = time.time()
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
-            elapsed = time.time() - start
+            self.experiment_time += time.time() - start
 
             self.global_step = self.trainer.global_step
             self.epochs_completed += self.trainer.current_epoch
 
             self.experiment_id = i
             wandb.log({'experiment_id': i})
-            wandb.log({'training_time': elapsed})
+
+            self._encode_dataset()
+            self._test()
+            self._evaluate()
+
+        wandb.log({'training_time': self.experiment_time})
 
     def _encode_dataset(self):
         self.alert(title=f'Indexing for {self.experiment_name} started!')
@@ -153,7 +202,7 @@ class Baseline(Experiment):
         del self.model.index
 
     def _test(self):
-        self.alert(title=f'Testing for {self.experiment_name} started!')
+        self.alert(title=f'Testing for {self.experiment_name} #{self.experiment_id} started!')
 
         self.model.test_length = len(self.test_dataloader.dataset)
         logger.info(f'Test dataloader size: {self.model.test_length}')
@@ -172,7 +221,7 @@ class Baseline(Experiment):
         del self.model.test
 
     def _evaluate(self):
-        self.alert(title=f'Evaluation for {self.experiment_name} started!')
+        self.alert(title=f'Evaluation for {self.experiment_name} #{self.experiment_id} started!')
 
         evaluator = Evaluator(
             self.cfg.biencoder.sequence_length,
@@ -188,7 +237,22 @@ class Baseline(Experiment):
             text=f'```{scores}```'
         )
 
-    def run_testing(self):
-        self._encode_dataset()
-        self._test()
-        self._evaluate()
+    def setup(self) -> None:
+        self.setup_loggers()
+        self.prepare_dataloaders()
+        self.setup_model()
+        self.setup_callbacks()
+        self.setup_strategies()
+
+    def execute(self):
+        try:
+            self.setup()
+            self.run_training()
+
+        except Exception as e:
+            self.alert(
+                title='Run has crashed!',
+                text=f'Error:\n```{e}```',
+                level=wandb.AlertLevel.ERROR
+            )
+            raise

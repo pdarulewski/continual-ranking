@@ -8,7 +8,7 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import seed_everything
 
-from continual_ranking.experiments.baseline import Baseline
+from continual_ranking.experiment import Experiment
 
 
 def setup_logging():
@@ -28,7 +28,7 @@ def main(cfg: DictConfig):
 
     cfg.device = accelerator
 
-    baseline = Baseline(cfg)
+    baseline = Experiment(cfg)
     baseline.execute()
 
 
