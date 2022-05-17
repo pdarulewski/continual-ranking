@@ -44,25 +44,22 @@ class DataModule(pl.LightningDataModule):
             chunks = data[:chunk_sizes[-1]]
             chunks = [TrainDataset(chunks, self.cfg.negatives_amount, tokenizer)]
 
-        elif self.strategy == 'rehearsal':
-            # FIXME
-            chunks.append(data[chunk_sizes[0]: chunk_sizes[1]])
-
-            for i in range(1, len(chunk_sizes) - 1):
-                slice_size = int((chunk_sizes[i + 1] - chunk_sizes[i]) * 0.2)
-
-                slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1] - slice_size]
-                chunks.append(slice_)
-
-            rehearsal_data = []
-            for i in range(1, len(chunks) - 1):
-                slice_size = int((chunk_sizes[i + 1] - chunk_sizes[i]) * 0.2)
-                rehearsal = np.random.choice(data[:chunk_sizes[i + 1]], slice_size)
-                rehearsal_data.append(rehearsal)
         else:
             for i in range(len(chunk_sizes) - 1):
                 slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1]]
                 chunks.append(slice_)
+
+            if self.strategy == 'replay':
+                replay = [list(np.random.choice(chunk, int(len(chunk) * 0.2))) for chunk in chunks]
+
+                for i, subset in enumerate(range(len(replay) - 1)):
+                    replay[i + 1] += replay[i]
+
+                chunks = [chunk + subset for chunk, subset in zip(chunks, replay)]
+
+                for chunk in chunks:
+                    random.shuffle(chunk)
+
             chunks = [TrainDataset(chunk, self.cfg.negatives_amount, tokenizer) for chunk in chunks]
 
         return chunks
