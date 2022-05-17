@@ -199,7 +199,7 @@ class Experiment:
         )
 
         pickle_dump(self.model.index, self.index_path)
-        del self.model.index
+        self.model.index = []
 
     def _test(self):
         self.alert(title=f'Testing for {self.experiment_name} #{self.experiment_id} started!')
@@ -218,7 +218,7 @@ class Experiment:
 
         self.test_path = f'test_{self.experiment_name}_{self.experiment_id}'
         pickle_dump(self.model.test, self.test_path)
-        del self.model.test
+        self.model.test = []
 
     def _evaluate(self):
         self.alert(title=f'Evaluation for {self.experiment_name} #{self.experiment_id} started!')
