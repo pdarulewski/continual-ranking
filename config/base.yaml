@@ -3,7 +3,7 @@ defaults:
   - datasets
   - biencoder
   - strategies
-  - experiment: baseline_20k
+  - experiment: naive
 
 seed: 42
 
