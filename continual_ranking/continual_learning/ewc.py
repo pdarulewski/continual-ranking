@@ -5,7 +5,6 @@ from typing import Tuple, List, Callable
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from avalanche.training.utils import copy_params_dict, zerolike_params_dict
 
 from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
 from continual_ranking.continual_learning.strategy import Strategy
@@ -64,7 +63,7 @@ class EWC(Strategy):
         exp_counter = trainer.task_id
         importances = self._compute_importances(trainer, pl_module)
         self._update_importances(importances, exp_counter)
-        self.saved_params[exp_counter] = copy_params_dict(pl_module)
+        self.saved_params[exp_counter] = self.copy_params_dict(pl_module)
 
         if exp_counter > 0 and not self.keep_importance_data:
             del self.saved_params[exp_counter - 1]
@@ -88,7 +87,7 @@ class EWC(Strategy):
                     )
                     module.train()
 
-        importances = zerolike_params_dict(pl_module)
+        importances = self.zerolike_params_dict(pl_module)
         for i, batch in enumerate(trainer.train_dataloader):
             x, y, task_labels = batch[0], batch[1], batch[-1]
             x, y = x.to(pl_module.device), y.to(pl_module.device)
@@ -123,3 +122,15 @@ class EWC(Strategy):
             # clear previous parameter importances
             if t > 0 and (not self.keep_importance_data):
                 del self.importances[t - 1]
+
+    @staticmethod
+    def copy_params_dict(model, copy_grad=False):
+        if copy_grad:
+            return [(k, p.grad.data.clone()) for k, p in model.named_parameters()]
+        else:
+            return [(k, p.data.clone()) for k, p in model.named_parameters()]
+
+    @staticmethod
+    def zerolike_params_dict(model):
+        return [(k, torch.zeros_like(p).to(p.device))
+                for k, p in model.named_parameters()]
