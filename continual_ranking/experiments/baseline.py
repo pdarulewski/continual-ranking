@@ -62,12 +62,12 @@ class Baseline(Experiment):
         self.callbacks = [
             ModelCheckpoint(
                 filename=self.experiment_name + '-{epoch:02d}-{val_loss:.2f}',
-                save_top_k=2,
-                monitor='val_loss',
+                save_top_k=1,
+                monitor='val_loss_step',
                 mode='min'
             ),
             EarlyStopping(
-                monitor='val_loss',
+                monitor='val_loss_step',
                 patience=3,
                 min_delta=0.01,
                 mode='min',
