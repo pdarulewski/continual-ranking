@@ -6,6 +6,7 @@ import traceback
 from typing import List, Union, Optional, Iterable, Any
 
 import pytorch_lightning as pl
+import torch
 import wandb
 from omegaconf import DictConfig
 from omegaconf import OmegaConf
@@ -200,6 +201,7 @@ class Experiment:
 
             self.experiment_id = i
             wandb.log({'experiment_id': i})
+            torch.cuda.empty_cache()
 
             self._evaluate()
 
@@ -266,6 +268,7 @@ class Experiment:
             title=f'Evaluation finished!',
             text=f'```{scores}```'
         )
+        torch.cuda.empty_cache()
 
     def setup(self) -> None:
         self.setup_loggers()
@@ -283,7 +286,7 @@ class Experiment:
         except Exception as e:
             self.alert(
                 title='Run has crashed!',
-                text=f'Error:\n```{e}\n\n{traceback.format_exc()}```',
+                text=f'Error:\n```{e}```',
                 level=wandb.AlertLevel.ERROR
             )
             logger.exception(traceback.format_exc())
