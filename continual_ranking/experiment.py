@@ -82,7 +82,11 @@ class Experiment:
 
         wandb.init()
 
-        csv_logger = CSVLogger('csv', name=self.experiment_name)
+        csv_logger = CSVLogger(
+            'csv',
+            name=self.cfg.project_name,
+            version=self.experiment_name
+        )
 
         self.loggers = [wandb_logger, csv_logger]
 
@@ -145,6 +149,8 @@ class Experiment:
             text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
         )
 
+        self.setup_trainer()
+
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
             train_length = len(train_dataloader.dataset)
             val_length = len(val_dataloader.dataset)
@@ -161,8 +167,6 @@ class Experiment:
                 title=f'Experiment #{i} for {self.experiment_name} started!',
                 text=f'{train_data_len_msg}\n{val_data_len_msg}'
             )
-
-            self.setup_trainer()
 
             start = time.time()
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
