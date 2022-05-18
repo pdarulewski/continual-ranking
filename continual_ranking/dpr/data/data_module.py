@@ -24,11 +24,11 @@ class DataModule(pl.LightningDataModule):
 
         self.train_sets = None
         self.eval_sets = None
-        self.index_set = None
-        self.test_set = None
         self.strategy = self.cfg.experiment.strategy
 
         self.train_set_length = 0
+
+        self.train_tokenizer = TrainTokenizer(self.cfg.biencoder.sequence_length)
 
     def _make_set_splits(self, dataset_path: str, tokenizer, split_size: float = 0):
         data = read_json_file(dataset_path)
@@ -68,19 +68,13 @@ class DataModule(pl.LightningDataModule):
         pass
 
     def setup(self, stage: Optional[str] = None):
-        train_tokenizer = TrainTokenizer(self.cfg.biencoder.sequence_length)
-
-        self.train_sets = self._make_set_splits(self.train_set_path, train_tokenizer)
-        self.eval_sets = self._make_set_splits(self.eval_set_path, train_tokenizer, self.cfg.datasets.split_size)
-        self.test_set = TrainDataset(read_json_file(self.test_set_path), self.cfg.negatives_amount, train_tokenizer)
+        self.train_sets = self._make_set_splits(self.train_set_path, self.train_tokenizer)
+        self.eval_sets = self._make_set_splits(self.eval_set_path, self.train_tokenizer, self.cfg.datasets.split_size)
 
         if self.strategy == 'baseline':
             self.train_set_length = len(self.train_sets)
         else:
             self.train_set_length = sum([len(dataset) for dataset in self.train_sets])
-
-        index_tokenizer = IndexTokenizer(self.cfg.biencoder.sequence_length)
-        self.index_set = IndexDataset(read_json_file(self.index_set_path), index_tokenizer)
 
     def train_dataloader(self):
         return [
@@ -101,15 +95,21 @@ class DataModule(pl.LightningDataModule):
         ]
 
     def index_dataloader(self):
+        index_tokenizer = IndexTokenizer(self.cfg.biencoder.sequence_length)
+        index_set = IndexDataset(read_json_file(self.index_set_path), index_tokenizer)
+
         return DataLoader(
-            self.index_set,
+            index_set,
             batch_size=self.cfg.biencoder.index_batch_size,
             num_workers=self.cfg.biencoder.num_workers
         )
 
     def test_dataloader(self):
+        test_set = TrainDataset(
+            read_json_file(self.test_set_path), self.cfg.negatives_amount, self.train_tokenizer)
+
         return DataLoader(
-            self.test_set,
+            test_set,
             batch_size=self.cfg.biencoder.test_batch_size,
             num_workers=self.cfg.biencoder.num_workers
         )

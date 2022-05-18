@@ -52,9 +52,9 @@ class BiEncoder(pl.LightningModule):
         self.test_length = 0
         self.test_length_met = 0
 
-        self.index: Union[list, torch.Tensor] = []
+        self.index: Union[list, Tensor] = []
         self.index_mode = False
-        self.test = []
+        self.test: Union[list, Tensor] = []
         self.test_mode = False
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
@@ -174,7 +174,7 @@ class BiEncoder(pl.LightningModule):
         self.val_acc_step += correct_predictions
         self.val_length_met += self.cfg.biencoder.val_batch_size
 
-        self.log('val_loss_step', loss, on_step=True)
+        self.log('val_loss', loss, on_step=True)
         self.log('val_loss_roll', self.val_loss_roll)
         self.log('val_acc_roll', self.val_acc_roll / self.val_length_met)
 
@@ -204,7 +204,7 @@ class BiEncoder(pl.LightningModule):
         self.test_acc_step += correct_predictions
         self.test_length_met += self.cfg.biencoder.test_batch_size
 
-        self.log('test_loss_step', loss, on_step=True)
+        self.log('test_loss', loss, on_step=True)
         self.log('test_loss_roll', self.test_loss_roll)
         self.log('test_acc_roll', self.test_acc_roll / self.test_length_met)
 

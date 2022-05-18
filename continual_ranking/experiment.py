@@ -2,6 +2,7 @@ import logging
 import math
 import os
 import time
+import traceback
 from typing import List, Union, Optional, Iterable, Any
 
 import pytorch_lightning as pl
@@ -36,8 +37,6 @@ class Experiment:
 
         self.train_dataloader: Union[DataLoader, List[DataLoader]] = []
         self.val_dataloader: Union[DataLoader, List[DataLoader]] = []
-        self.index_dataloader: Union[DataLoader, List[DataLoader]] = []
-        self.test_dataloader: Union[DataLoader, List[DataLoader]] = []
 
         self.callbacks: List[pl.Callback] = []
 
@@ -70,8 +69,6 @@ class Experiment:
 
         self.train_dataloader = self.datamodule.train_dataloader()
         self.val_dataloader = self.datamodule.val_dataloader()
-        self.index_dataloader = self.datamodule.index_dataloader()
-        self.test_dataloader = self.datamodule.test_dataloader()
 
     def setup_loggers(self) -> None:
         logger.info('Setting up wandb logger')
@@ -100,11 +97,11 @@ class Experiment:
             ModelCheckpoint(
                 filename=self.experiment_name + '-{epoch:02d}-{val_loss:.2f}',
                 save_top_k=1,
-                monitor='val_loss_step',
+                monitor='val_loss',
                 mode='min'
             ),
             EarlyStopping(
-                monitor='val_loss_step',
+                monitor='val_loss',
                 patience=3,
                 min_delta=0.01,
                 mode='min',
@@ -175,18 +172,16 @@ class Experiment:
             self.experiment_id = i
             wandb.log({'experiment_id': i})
 
-            self._encode_dataset()
-            self._test()
             self._evaluate()
 
         wandb.log({'training_time': self.experiment_time})
 
-    def _encode_dataset(self):
+    def _encode_dataset(self, index_dataloader):
         self.alert(title=f'Indexing for {self.experiment_name} started!')
-        logger.info(f'Index dataloader size: {len(self.index_dataloader.dataset)}')
+        logger.info(f'Index dataloader size: {len(index_dataloader.dataset)}')
 
         self.model.index_mode = True
-        self.trainer.test(self.model, self.index_dataloader)
+        self.trainer.test(self.model, index_dataloader)
         self.model.index_mode = False
 
         logger.info(f'Index shape: {self.model.index.shape}')
@@ -201,13 +196,13 @@ class Experiment:
         pickle_dump(self.model.index, self.index_path)
         self.model.index = []
 
-    def _test(self):
+    def _test(self, test_dataloader):
         self.alert(title=f'Testing for {self.experiment_name} #{self.experiment_id} started!')
 
-        self.model.test_length = len(self.test_dataloader.dataset)
+        self.model.test_length = len(test_dataloader.dataset)
         logger.info(f'Test dataloader size: {self.model.test_length}')
 
-        self.trainer.test(self.model, self.test_dataloader)
+        self.trainer.test(self.model, test_dataloader)
 
         logger.info(f'Test shape: {self.model.test.shape}')
 
@@ -221,12 +216,18 @@ class Experiment:
         self.model.test = []
 
     def _evaluate(self):
+        index_dataloader = self.datamodule.index_dataloader()
+        test_dataloader = self.datamodule.test_dataloader()
+
+        self._encode_dataset(index_dataloader)
+        self._test(test_dataloader)
+
         self.alert(title=f'Evaluation for {self.experiment_name} #{self.experiment_id} started!')
 
         evaluator = Evaluator(
             self.cfg.biencoder.sequence_length,
-            self.index_dataloader.dataset, self.index_path,
-            self.test_dataloader.dataset, self.test_path,
+            index_dataloader.dataset, self.index_path,
+            test_dataloader.dataset, self.test_path,
             'cuda:0' if self.cfg.device == 'gpu' else 'cpu'
         )
         scores = evaluator.evaluate()
@@ -252,7 +253,7 @@ class Experiment:
         except Exception as e:
             self.alert(
                 title='Run has crashed!',
-                text=f'Error:\n```{e}```',
+                text=f'Error:\n```{e}\n\n{traceback.format_exc()}```',
                 level=wandb.AlertLevel.ERROR
             )
             raise
