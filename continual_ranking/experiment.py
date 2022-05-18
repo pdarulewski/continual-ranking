@@ -12,6 +12,7 @@ from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger, CSVLogger
+from pytorch_lightning.loops import FitLoop
 from torch.utils.data import DataLoader
 
 from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
@@ -23,6 +24,26 @@ from continual_ranking.dpr.data.file_handler import pickle_dump
 from continual_ranking.dpr.models import BiEncoder
 
 logger = logging.getLogger(__name__)
+
+
+class ContinualFitLoop(FitLoop):
+    def run(self, *args: Any, **kwargs: Any):
+        self.reset()
+
+        self.on_run_start(*args, **kwargs)
+
+        while not self.done:
+            try:
+                self.on_advance_start(*args, **kwargs)
+                self.advance(*args, **kwargs)
+                self.on_advance_end()
+                self._restarting = False
+            except StopIteration:
+                break
+        self._restarting = False
+
+        output = self.on_run_end()
+        return output
 
 
 class Experiment:
@@ -129,9 +150,11 @@ class Experiment:
             fast_dev_run=self.fast_dev_run
         )
 
-        self.trainer.fit_loop.epoch_loop.batch_loop.optimizer_loop.optim_progress.optimizer.step.total.completed = self.global_step  # :)
-        self.trainer.fit_loop.epoch_loop._batches_that_stepped = self.global_step
-        self.trainer.fit_loop.epoch_progress.current.completed = self.epochs_completed
+        self.trainer.fit_loop = ContinualFitLoop()
+
+        # self.trainer.fit_loop.epoch_loop.batch_loop.optimizer_loop.optim_progress.optimizer.step.total.completed = self.global_step  # :)
+        # self.trainer.fit_loop.epoch_loop._batches_that_stepped = self.global_step
+        # self.trainer.fit_loop.epoch_progress.current.completed = self.epochs_completed
 
     def setup_strategies(self) -> None:
         if self.cfg.experiment.strategy == 'ewc':
@@ -148,8 +171,6 @@ class Experiment:
             title=f'Training for {self.experiment_name} started!',
             text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
         )
-
-        self.setup_trainer()
 
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
             train_length = len(train_dataloader.dataset)
@@ -250,6 +271,7 @@ class Experiment:
         self.setup_model()
         self.setup_callbacks()
         self.setup_strategies()
+        self.setup_trainer()
 
     def execute(self):
         try:
