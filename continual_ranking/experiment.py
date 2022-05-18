@@ -192,6 +192,8 @@ class Experiment:
                 text=f'{train_data_len_msg}\n{val_data_len_msg}'
             )
 
+            wandb.log({'experiment_id': i})
+
             start = time.time()
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
             self.experiment_time += time.time() - start
@@ -200,7 +202,6 @@ class Experiment:
             self.epochs_completed += self.trainer.current_epoch
 
             self.experiment_id = i
-            wandb.log({'experiment_id': i})
             torch.cuda.empty_cache()
 
             self._evaluate()
