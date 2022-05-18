@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import WandbLogger, CSVLogger
 from torch.utils.data import DataLoader
 
 from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
@@ -82,7 +82,9 @@ class Experiment:
 
         wandb.init()
 
-        self.loggers = [wandb_logger]
+        csv_logger = CSVLogger('csv', name=self.experiment_name)
+
+        self.loggers = [wandb_logger, csv_logger]
 
     def setup_model(self) -> None:
         logger.info('Setting up model')
@@ -256,4 +258,5 @@ class Experiment:
                 text=f'Error:\n```{e}\n\n{traceback.format_exc()}```',
                 level=wandb.AlertLevel.ERROR
             )
+            logger.exception(traceback.format_exc())
             raise
