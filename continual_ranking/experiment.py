@@ -32,6 +32,8 @@ class ContinualFitLoop(FitLoop):
 
         self.on_run_start(*args, **kwargs)
 
+        self.trainer.should_stop = False
+
         while not self.done:
             try:
                 self.on_advance_start(*args, **kwargs)
