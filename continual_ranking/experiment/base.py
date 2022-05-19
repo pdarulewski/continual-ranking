@@ -127,9 +127,9 @@ class Base:
         self.callbacks.append(strategy)
 
     def setup(self) -> None:
+        self.prepare_dataloaders()
         self.setup_model()
         self.setup_loggers()
-        self.prepare_dataloaders()
         self.setup_callbacks()
         self.setup_strategies()
         self.setup_trainer()
