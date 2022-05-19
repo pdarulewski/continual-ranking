@@ -10,7 +10,6 @@ import torch
 import wandb
 from omegaconf import DictConfig
 from omegaconf import OmegaConf
-from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger, CSVLogger
 from pytorch_lightning.loops import FitLoop
@@ -141,7 +140,7 @@ class Experiment:
 
     def setup_trainer(self) -> None:
         logger.info('Setting up trainer')
-        self.trainer = Trainer(
+        self.trainer = ContinualTrainer(
             max_epochs=self.cfg.biencoder.max_epochs,
             accelerator=self.cfg.device,
             gpus=-1 if self.cfg.device == 'gpu' else 0,
@@ -154,10 +153,6 @@ class Experiment:
         )
 
         self.trainer.fit_loop = ContinualFitLoop()
-
-        # self.trainer.fit_loop.epoch_loop.batch_loop.optimizer_loop.optim_progress.optimizer.step.total.completed = self.global_step  # :)
-        # self.trainer.fit_loop.epoch_loop._batches_that_stepped = self.global_step
-        # self.trainer.fit_loop.epoch_progress.current.completed = self.epochs_completed
 
     def setup_strategies(self) -> None:
         if self.cfg.experiment.strategy == 'ewc':
@@ -202,6 +197,7 @@ class Experiment:
             self.epochs_completed += self.trainer.current_epoch
 
             self.experiment_id = i
+            self.trainer.task_id = i
             torch.cuda.empty_cache()
 
             self._evaluate()
