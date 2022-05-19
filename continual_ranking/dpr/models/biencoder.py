@@ -174,8 +174,8 @@ class BiEncoder(pl.LightningModule):
         self.val_acc_step += correct_predictions
         self.val_length_met += self.cfg.biencoder.val_batch_size
 
-        self.log('val_loss', loss)
         self.log('val_loss', loss, on_step=True)
+        self.log('val_loss_all', loss)
         self.log('val_loss_roll', self.val_loss_roll)
         self.log('val_acc_roll', self.val_acc_roll / self.val_length_met)
 
@@ -205,8 +205,8 @@ class BiEncoder(pl.LightningModule):
         self.test_acc_step += correct_predictions
         self.test_length_met += self.cfg.biencoder.test_batch_size
 
-        self.log('test_loss', loss)
         self.log('test_loss', loss, on_step=True)
+        self.log('test_loss_all', loss)
         self.log('test_loss_roll', self.test_loss_roll)
         self.log('test_acc_roll', self.test_acc_roll / self.test_length_met)
 
