@@ -20,6 +20,7 @@ class Evaluator:
 
         self.k = [1, 5] + list(range(10, 110, 10))
         self.top_k_docs = {k: 0 for k in self.k}
+        self.mean_ap = {k: 0 for k in self.k}
 
         self.device = device
 
@@ -67,9 +68,12 @@ class Evaluator:
             for i, row in enumerate(top_indices):
                 results = torch.tensor(questions[i] == answers[row])
 
-                for b in results:
+                for j, b in enumerate(results):
                     if b.all():
                         self.top_k_docs[k] += 1
+                        self.mean_ap[k] += 1 / j
+
+            self.mean_ap[k] /= len(questions)
 
     def _calculate_acc(self) -> Dict[str, float]:
         return {f'k_acc_{key}': value / len(self.test_dataset) for key, value in self.top_k_docs.items()}
