@@ -4,6 +4,7 @@ from typing import Tuple, Union
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+import wandb
 from torch import Tensor
 from torch.optim import AdamW, Optimizer
 
@@ -43,9 +44,11 @@ class BiEncoder(pl.LightningModule):
 
         self.val_length = 0
         self.val_acc_step = 0
+        self.val_loss_step = 0
 
         self.test_length = 0
         self.test_acc_step = 0
+        self.test_loss_step = 0
 
     def log_metrics(self, metrics: dict):
         for key, value in metrics.items():
@@ -148,14 +151,10 @@ class BiEncoder(pl.LightningModule):
     def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
         val_loss, correct_predictions, _ = self._shared_step(batch, batch_idx)
 
+        self.val_loss_step += val_loss
         self.val_acc_step += correct_predictions
 
-        log_dict = {
-            'val/loss_epoch': val_loss,
-            'experiment_id':  self.experiment_id
-        }
-
-        self.log_metrics(log_dict)
+        self.log('val/loss_epoch', val_loss)
         return val_loss
 
     def _index_step(self, batch: TokenizedIndexSample):
@@ -170,16 +169,12 @@ class BiEncoder(pl.LightningModule):
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
         test_loss, correct_predictions, q_pooled_out = self._shared_step(batch, batch_idx)
 
+        self.test_loss_step += test_loss
         self.test_acc_step += correct_predictions
 
         self.test_length_met += self.cfg.biencoder.test_batch_size
 
-        log_dict = {
-            'test/loss_epoch': test_loss,
-            'experiment_id':   self.experiment_id
-        }
-
-        self.log_metrics(log_dict)
+        self.log('test/loss_epoch', test_loss)
 
         self.test.append(q_pooled_out.to('cpu'))
         return test_loss
@@ -199,16 +194,23 @@ class BiEncoder(pl.LightningModule):
         self.train_acc_roll = 0
 
     def on_train_epoch_end(self) -> None:
-        self.log_metrics({
-            'train/acc_epoch': self.train_acc_roll / self.train_length
-        })
+        self.log_metrics(
+            {
+                'train/acc_epoch': self.train_acc_roll / self.train_length
+            }
+        )
 
     def on_validation_epoch_start(self) -> None:
         self.val_acc_step = 0
 
     def on_validation_epoch_end(self) -> None:
-        self.log_metrics({
-            'val/acc_epoch': self.val_acc_step / self.val_length
+        val_loss = self.val_loss_step / self.val_length
+        val_acc = self.val_acc_step / self.val_length
+        self.log('val/acc_epoch', val_acc)
+        wandb.log({
+            'val/loss_experiment': val_loss,
+            'val/acc_experiment':  val_acc,
+            'experiment_id':       self.experiment_id
         })
 
     def on_test_epoch_start(self) -> None:
@@ -218,7 +220,13 @@ class BiEncoder(pl.LightningModule):
         if self.index_mode:
             self.index = torch.cat(self.index)
         else:
-            self.log_metrics({
-                'test/acc_step': self.test_acc_step / self.test_length
+            test_loss = self.test_loss_step / self.test_length
+            test_acc = self.test_acc_step / self.test_length
+            self.log('val/acc_epoch', test_acc)
+            wandb.log({
+                'test/loss_experiment': test_loss,
+                'test/acc_experiment':  test_acc,
+                'experiment_id':        self.experiment_id
             })
+
             self.test = torch.cat(self.test)
