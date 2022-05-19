@@ -64,7 +64,7 @@ class Experiment(Base):
 
         wandb.log({'training_time': self.training_time})
 
-    def _encode_dataset(self, index_dataloader) -> None:
+    def _index(self, index_dataloader) -> None:
         self.alert(title=f'Indexing for {self.experiment_name} started!')
         logger.info(f'Index dataloader size: {len(index_dataloader.dataset)}')
 
@@ -107,7 +107,7 @@ class Experiment(Base):
         index_dataloader = self.datamodule.index_dataloader()
         test_dataloader = self.datamodule.test_dataloader()
 
-        self._encode_dataset(index_dataloader)
+        self._index(index_dataloader)
         self._test(test_dataloader)
 
         self.alert(title=f'Evaluation for {self.experiment_name} #{self.experiment_id} started!')
@@ -116,12 +116,11 @@ class Experiment(Base):
             self.cfg.biencoder.sequence_length,
             index_dataloader.dataset, self.index_path,
             test_dataloader.dataset, self.test_path,
-            'cuda:0' if self.cfg.device == 'gpu' else 'cpu'
+            'cuda:0' if self.cfg.device == 'gpu' else 'cpu',
+            self.experiment_id
         )
 
         scores = evaluator.evaluate()
-
-        scores['experiment_id'] = self.experiment_id
         wandb.log(scores)
 
         self.alert(

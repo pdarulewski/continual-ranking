@@ -8,10 +8,10 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import seed_everything
 
-from continual_ranking.experiment import Experiment
+from continual_ranking.experiment.experiment import Experiment
 
 
-def setup_logging():
+def setup_logging() -> None:
     with open(os.path.join('config', 'logging.yaml'), 'r') as f:
         config = yaml.safe_load(f.read())
     logging.config.dictConfig(config)
