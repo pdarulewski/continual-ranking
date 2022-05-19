@@ -161,9 +161,9 @@ class Experiment:
 
     def setup_strategies(self) -> None:
         if self.cfg.experiment.strategy == 'ewc':
-            strategy = EWC(**self.cfg.strategies.ewc)
+            strategy = EWC(**self.cfg.ewc)
         elif self.cfg.experiment.strategy == 'gem':
-            strategy = GEM(**self.cfg.strategies.ewc)
+            strategy = GEM(**self.cfg.gem)
         else:
             return
 
