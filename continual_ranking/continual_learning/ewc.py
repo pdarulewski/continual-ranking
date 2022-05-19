@@ -87,7 +87,7 @@ class EWC(Strategy):
                     )
                     module.train()
 
-        importances = self.zerolike_params_dict(pl_module)
+        importances = self.zero_like_params_dict(pl_module)
         for i, batch in enumerate(trainer.train_dataloader):
             x, y, task_labels = batch[0], batch[1], batch[-1]
             x, y = x.to(pl_module.device), y.to(pl_module.device)
@@ -131,6 +131,6 @@ class EWC(Strategy):
             return [(k, p.data.clone()) for k, p in model.named_parameters()]
 
     @staticmethod
-    def zerolike_params_dict(model):
+    def zero_like_params_dict(model):
         return [(k, torch.zeros_like(p).to(p.device))
                 for k, p in model.named_parameters()]

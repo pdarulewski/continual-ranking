@@ -1,0 +1,3 @@
+name: naive
+strategy: naive
+sizes: [ 0, 100, 200, 300 ]

@@ -4,4 +4,7 @@ val: data/MSMARCO/passages/val.json
 index: data/MSMARCO/passages/index.json
 test: data/MSMARCO/passages/test.json
 
+#index: data/MSMARCO/passages/index_test.json
+#test: data/MSMARCO/passages/test_test.json
+
 split_size: 0.2

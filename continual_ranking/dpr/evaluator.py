@@ -3,7 +3,6 @@ from typing import Dict
 import torch
 from transformers import BertTokenizer
 
-from continual_ranking.dpr.data.data_module import DataModule
 from continual_ranking.dpr.data.file_handler import pickle_load
 from continual_ranking.dpr.models.biencoder import dot_product
 
@@ -19,7 +18,7 @@ class Evaluator:
         self.index_path = index_path
         self.test_path = test_path
 
-        self.k = [5] + list(range(10, 110, 10))
+        self.k = [1, 5] + list(range(10, 110, 10))
         self.top_k_docs = {k: 0 for k in self.k}
 
         self.device = device
@@ -66,7 +65,7 @@ class Evaluator:
             top_indices = top_items.indices
 
             for i, row in enumerate(top_indices):
-                results: torch.Tensor = questions[i] == answers[row]
+                results = torch.tensor(questions[i] == answers[row])
 
                 for b in results:
                     if b.all():
