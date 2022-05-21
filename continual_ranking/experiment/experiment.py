@@ -58,9 +58,10 @@ class Experiment(Base):
             self.experiment_id = i if not id_ else id_
             self.model.experiment_id = self.experiment_id
             self.trainer.task_id = self.experiment_id
-            torch.cuda.empty_cache()
 
+            torch.cuda.empty_cache()
             self._evaluate()
+            torch.cuda.empty_cache()
 
         wandb.log({'training_time': self.training_time})
 
@@ -127,4 +128,3 @@ class Experiment(Base):
             title=f'Evaluation finished!',
             text=f'```{scores}```'
         )
-        torch.cuda.empty_cache()

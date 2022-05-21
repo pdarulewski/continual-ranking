@@ -228,7 +228,7 @@ class BiEncoder(pl.LightningModule):
         else:
             test_loss = self.test_loss_step / self.test_length
             test_acc = self.test_acc_step / self.test_length
-            self.log('val/acc_epoch', test_acc)
+            self.log('test/acc_epoch', test_acc)
             wandb.log({
                 'test/loss_experiment': test_loss,
                 'test/acc_experiment':  test_acc,
