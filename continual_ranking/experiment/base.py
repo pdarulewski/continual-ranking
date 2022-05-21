@@ -113,7 +113,8 @@ class Base:
             auto_lr_find=True,
             logger=self.loggers,
             callbacks=self.callbacks,
-            fast_dev_run=self.fast_dev_run
+            fast_dev_run=self.fast_dev_run,
+            log_every_n_steps=100,
         )
 
     def setup_strategies(self) -> None:
