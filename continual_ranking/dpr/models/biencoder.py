@@ -145,7 +145,7 @@ class BiEncoder(pl.LightningModule):
             self.train_acc_step = 0
 
         self.log_metrics(log_dict)
-        self.log('train/loss', loss_step, on_step=False, on_epoch=True)
+        self.log('train/loss_epoch', loss_step, on_step=False, on_epoch=True)
         return loss_step
 
     def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
@@ -171,8 +171,6 @@ class BiEncoder(pl.LightningModule):
 
         self.test_loss_step += test_loss
         self.test_acc_step += correct_predictions
-
-        self.test_length_met += self.cfg.biencoder.test_batch_size
 
         self.log('test/loss_epoch', test_loss)
 
