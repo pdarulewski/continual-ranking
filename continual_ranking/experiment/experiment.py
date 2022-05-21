@@ -30,7 +30,7 @@ class Experiment(Base):
             text=f'```\n{OmegaConf.to_yaml(self.cfg)}```'
         )
 
-        baseline_i = self.cfg.experiment.id
+        id_ = self.cfg.experiment.get('id')
 
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
             train_length = len(train_dataloader.dataset)
@@ -55,7 +55,7 @@ class Experiment(Base):
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
             self.training_time += time.time() - start
 
-            self.experiment_id = i if not baseline_i else baseline_i
+            self.experiment_id = i if not id_ else id_
             self.model.experiment_id = self.experiment_id
             self.trainer.task_id = self.experiment_id
             torch.cuda.empty_cache()
