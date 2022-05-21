@@ -82,7 +82,7 @@ class Evaluator:
                 for j, b in enumerate(results):
                     if b.all():
                         self.top_k_docs[k] += 1
-                        self.mean_ap[k] += 1 / j
+                        self.mean_ap[k] += 1 / (j + 1)
 
     def _calculate_acc(self) -> Dict[str, float]:
         return {f'k_acc/{key}': value / len(self.test_dataset) for key, value in self.top_k_docs.items()}

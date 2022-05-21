@@ -46,6 +46,10 @@ class BiEncoder(pl.LightningModule):
         self.val_acc_step = 0
         self.val_loss_step = 0
 
+        self.val_loss_avg = 0
+        self.val_acc_avg = 0
+        self.validations_amount = 0
+
         self.test_length = 0
         self.test_acc_step = 0
         self.test_loss_step = 0
@@ -202,17 +206,21 @@ class BiEncoder(pl.LightningModule):
         self.val_acc_step = 0
 
     def on_validation_epoch_end(self) -> None:
-        val_loss = self.val_loss_step / self.val_length
         val_acc = self.val_acc_step / self.val_length
         self.log('val/acc_epoch', val_acc)
-        wandb.log({
-            'val/loss_experiment': val_loss,
-            'val/acc_experiment':  val_acc,
-            'experiment_id':       self.experiment_id
-        })
+
+        self.val_acc_avg += val_acc
+        self.val_loss_avg += self.val_loss_step / self.val_length
+        self.validations_amount += 1
 
     def on_test_epoch_start(self) -> None:
         self.test_acc_step = 0
+
+        wandb.log({
+            'val/loss_experiment': self.val_loss_avg / self.validations_amount,
+            'val/acc_experiment':  self.val_acc_avg / self.validations_amount,
+            'experiment_id':       self.experiment_id
+        })
 
     def on_test_epoch_end(self) -> None:
         if self.index_mode:
