@@ -83,10 +83,10 @@ class Base:
         self.callbacks = [
             ModelCheckpoint(
                 filename=self.experiment_name + '-{epoch:02d}-{val_loss:.2f}',
-                monitor='val_loss',
+                monitor='val/loss_epoch',
             ),
             EarlyStopping(
-                monitor='val_loss',
+                monitor='val/loss_epoch',
                 min_delta=0.01,
                 verbose=True
             ),
