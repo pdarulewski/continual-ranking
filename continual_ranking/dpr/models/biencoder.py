@@ -143,8 +143,8 @@ class BiEncoder(pl.LightningModule):
             'train/acc_roll':  self.train_acc_roll / self.train_length_met
         }
 
-        if (self.global_step + 1) % 100 == 0:
-            log_dict['train/acc_step'] = self.train_acc_step / (100 * self.cfg.biencoder.train_batch_size)
+        if (self.global_step + 1) % 50 == 0:
+            log_dict['train/acc_step'] = self.train_acc_step / (50 * self.cfg.biencoder.train_batch_size)
             self.train_loss_roll = 0
             self.train_acc_step = 0
 
