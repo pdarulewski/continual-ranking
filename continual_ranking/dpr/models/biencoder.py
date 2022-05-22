@@ -120,11 +120,7 @@ class BiEncoder(pl.LightningModule):
 
         positives_idx = [x for x in range(ctx_pooled_out.shape[0]) if x % (1 + self.cfg.negatives_amount) == 0]
 
-        loss, correct_predictions = self.calculate_loss(
-            q_pooled_out,
-            ctx_pooled_out,
-            positives_idx,
-        )
+        loss, correct_predictions = self.calculate_loss(q_pooled_out, ctx_pooled_out, positives_idx)
 
         return loss, correct_predictions, q_pooled_out
 
@@ -156,7 +152,7 @@ class BiEncoder(pl.LightningModule):
     def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
         val_loss, correct_predictions, _ = self._shared_step(batch, batch_idx)
 
-        self.val_loss_step += val_loss
+        self.val_loss_step += val_loss.item()
         self.val_acc_step += correct_predictions
 
         self.log('val/loss_epoch', val_loss)
@@ -174,7 +170,7 @@ class BiEncoder(pl.LightningModule):
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
         test_loss, correct_predictions, q_pooled_out = self._shared_step(batch, batch_idx)
 
-        self.test_loss_step += test_loss
+        self.test_loss_step += test_loss.item()
         self.test_acc_step += correct_predictions
 
         self.log('test/loss_epoch', test_loss)
