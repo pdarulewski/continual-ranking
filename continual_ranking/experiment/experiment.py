@@ -49,15 +49,15 @@ class Experiment(Base):
                 text=f'{train_data_len_msg}\n{val_data_len_msg}'
             )
 
-            wandb.log({'experiment_id': i})
-
-            start = time.time()
-            self.trainer.fit(self.model, train_dataloader, val_dataloader)
-            self.training_time += time.time() - start
-
             self.experiment_id = i if not id_ else id_
             self.model.experiment_id = self.experiment_id
             self.trainer.task_id = self.experiment_id
+
+            start = time.time()
+            self.trainer.fit(self.model, train_dataloader, val_dataloader)
+            experiment_time = time.time() - start
+            self.training_time += experiment_time
+            wandb.log({'experiment_time': experiment_time, 'experiment_id': self.experiment_id})
 
             torch.cuda.empty_cache()
             self._evaluate()
