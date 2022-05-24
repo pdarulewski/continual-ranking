@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 class Base:
     def __init__(self, cfg: DictConfig):
         self.cfg = cfg
-        self.logging_on = cfg.logging_on
         self.fast_dev_run = cfg.fast_dev_run
+        self.logging_on = cfg.logging_on and not self.fast_dev_run
         self.experiment_name = cfg.experiment.name
 
         self.model: Optional[BiEncoder] = None
@@ -53,25 +53,28 @@ class Base:
         )
 
     def setup_loggers(self) -> None:
-        logger.info('Setting up wandb logger')
-        wandb.login(key=os.getenv('WANDB_KEY'))
+        if self.logging_on:
+            logger.info('Setting up wandb logger')
+            wandb.login(key=os.getenv('WANDB_KEY'))
 
-        wandb_logger = WandbLogger(
-            name=self.experiment_name,
-            project=self.cfg.project_name,
-            offline=not self.logging_on,
-        )
+            wandb_logger = WandbLogger(
+                name=self.experiment_name,
+                project=self.cfg.project_name,
+                offline=not self.logging_on,
+            )
 
-        wandb.init()
+            wandb.init()
 
-        wandb.define_metric('experiment_id')
-        wandb.define_metric('val/loss_experiment', step_metric='experiment_id')
-        wandb.define_metric('val/acc_experiment', step_metric='experiment_id')
+            wandb.define_metric('experiment_id')
+            wandb.define_metric('val/loss_experiment', step_metric='experiment_id')
+            wandb.define_metric('val/acc_experiment', step_metric='experiment_id')
 
-        wandb.define_metric('test/loss_experiment', step_metric='experiment_id')
-        wandb.define_metric('test/acc_experiment', step_metric='experiment_id')
+            wandb.define_metric('test/loss_experiment', step_metric='experiment_id')
+            wandb.define_metric('test/acc_experiment', step_metric='experiment_id')
 
-        wandb_logger.watch(self.model, log='all', log_freq=500)
+            wandb_logger.watch(self.model, log='all', log_freq=500)
+
+            self.loggers.append(wandb_logger)
 
         csv_logger = CSVLogger(
             'csv',
@@ -79,7 +82,7 @@ class Base:
             version=self.experiment_name
         )
 
-        self.loggers = [wandb_logger, csv_logger]
+        self.loggers.append(csv_logger)
 
     def setup_callbacks(self) -> None:
         logger.info('Setting up callbacks')
