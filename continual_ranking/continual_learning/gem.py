@@ -36,10 +36,10 @@ class GEM(Strategy):
                 pl_module.train()
                 for optimizer in trainer.optimizers:
                     optimizer.zero_grad()
-                    xref = self.memory_x[t].to(pl_module.device)
-                    yref = self.memory_y[t].to(pl_module.device)
-                    out = pl_module.forward(xref)
-                    loss = self.criterion(out, yref)
+                    x_ref = self.memory_x[t].to(pl_module.device)
+                    y_ref = self.memory_y[t].to(pl_module.device)
+                    out = pl_module.forward(x_ref)
+                    loss = self.criterion(out, y_ref)
                     loss.backward()
 
                 gradient.append(torch.cat([
@@ -76,8 +76,7 @@ class GEM(Strategy):
             for p in pl_module.parameters():
                 curr_pars = p.numel()
                 if p.grad is not None:
-                    p.grad.copy_(
-                        v_star[num_pars:num_pars + curr_pars].view(p.size()))
+                    p.grad.copy_(v_star[num_pars:num_pars + curr_pars].view(p.size()))
                 num_pars += curr_pars
 
             if num_pars != v_star.numel():
