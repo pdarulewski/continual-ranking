@@ -9,10 +9,13 @@ class ContinualTrainer(pl.Trainer):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.task_id: int = 0
-        self.fit_loop = ContinualFitLoop()
+        self.fit_loop = ContinualFitLoop(max_epochs=kwargs['max_epochs'])
 
 
 class ContinualFitLoop(FitLoop):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     def run(self, *args: Any, **kwargs: Any):
         self.reset()
 
