@@ -42,6 +42,9 @@ class Base:
         if self.logging_on:
             wandb.alert(title=title, text=text, **kwargs)
 
+        logging.info(title)
+        logging.info(text)
+
     def setup_model(self) -> None:
         logger.info('Setting up model')
         self.model = BiEncoder(

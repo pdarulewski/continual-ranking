@@ -1,4 +1,3 @@
-import logging
 import time
 
 import torch
@@ -9,8 +8,6 @@ from omegaconf import OmegaConf
 from continual_ranking.dpr.data.file_handler import pickle_dump
 from continual_ranking.dpr.evaluator import Evaluator
 from continual_ranking.experiment.base import Base
-
-logger = logging.getLogger(__name__)
 
 
 class Experiment(Base):
@@ -33,20 +30,13 @@ class Experiment(Base):
         id_ = self.cfg.experiment.get('id')
 
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
-            train_length = len(train_dataloader.dataset)
-            val_length = len(val_dataloader.dataset)
-            train_data_len_msg = f'Training dataloader size: {train_length}'
-            val_data_len_msg = f'Validation dataloader size: {val_length}'
-
-            self.model.train_length = train_length
-            self.model.val_length = val_length
-
-            logger.info(train_data_len_msg)
-            logger.info(val_data_len_msg)
+            self.model.train_length = len(train_dataloader)
+            self.model.val_length = len(val_dataloader)
 
             self.alert(
                 title=f'Experiment #{i} for {self.experiment_name} started!',
-                text=f'{train_data_len_msg}\n{val_data_len_msg}'
+                text=f'Training dataloader size: {len(train_dataloader.dataset)}\n'
+                     f'Validation dataloader size: {len(val_dataloader.dataset)}'
             )
 
             self.experiment_id = i if not id_ else id_
@@ -66,38 +56,38 @@ class Experiment(Base):
         wandb.log({'training_time': self.training_time})
 
     def _index(self, index_dataloader) -> None:
-        self.alert(title=f'Indexing for {self.experiment_name} started!')
-        logger.info(f'Index dataloader size: {len(index_dataloader.dataset)}')
+        self.alert(
+            title=f'Indexing for {self.experiment_name} started!',
+            text=f'Index dataloader size: {len(index_dataloader.dataset)}'
+        )
 
         self.model.index_mode = True
         self.trainer.test(self.model, index_dataloader)
         self.model.index_mode = False
 
-        logger.info(f'Index shape: {self.model.index.shape}')
-
         self.index_path = f'index_{self.experiment_name}_{self.experiment_id}'
 
         self.alert(
             title=f'Indexing finished!',
-            text=f'Indexed {len(self.model.index)} samples'
+            text=f'Indexed {len(self.model.index)} samples, index shape: {self.model.index.shape}'
         )
 
         pickle_dump(self.model.index, self.index_path)
         self.model.index = []
 
     def _test(self, test_dataloader) -> None:
-        self.alert(title=f'Testing for {self.experiment_name} #{self.experiment_id} started!')
+        self.alert(
+            title=f'Testing for {self.experiment_name} #{self.experiment_id} started!',
+            text=f'Test dataloader size: {len(test_dataloader.dataset)}'
+        )
 
-        self.model.test_length = len(test_dataloader.dataset)
-        logger.info(f'Test dataloader size: {self.model.test_length}')
+        self.model.test_length = len(test_dataloader)
 
         self.trainer.test(self.model, test_dataloader)
 
-        logger.info(f'Test shape: {self.model.test.shape}')
-
         self.alert(
             title=f'Testing finished!',
-            text=f'Tested {self.model.test_length} samples'
+            text=f'Tested {self.model.test_length} samples, test shape: {self.model.test.shape}'
         )
 
         self.test_path = f'test_{self.experiment_name}_{self.experiment_id}'
