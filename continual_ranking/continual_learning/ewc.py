@@ -36,14 +36,14 @@ class EWC(Strategy):
             self, trainer: ContinualTrainer, pl_module: "pl.LightningModule", loss: torch.Tensor
     ) -> None:
         logging.info('EWC: on_before_backward')
-        exp_counter = trainer.task_id
-        if exp_counter == 0:
+        task_id = trainer.task_id
+        if task_id < 1:
             return
 
         penalty = torch.tensor(0).float().to(pl_module.device)
 
         logging.info('EWC: calculating penalty')
-        for experience in range(exp_counter):
+        for experience in range(task_id):
             for (_, cur_param), (_, saved_param), (_, imp) in zip(
                     pl_module.named_parameters(),
                     self.saved_params[experience],
@@ -56,6 +56,9 @@ class EWC(Strategy):
     def on_after_backward(self, trainer: ContinualTrainer, pl_module: "pl.LightningModule") -> None:
         logging.info('EWC: on_after_backward')
         task_id = trainer.task_id
+        if task_id < 1:
+            return
+
         importances = self._compute_importances(trainer, pl_module)
         self._update_importances(importances, task_id)
         self.saved_params[task_id] = self.copy_params_dict(pl_module)
