@@ -34,8 +34,8 @@ class Experiment(Base):
         id_ = self.cfg.experiment.get('id')
 
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
-            self.model.train_length = len(train_dataloader)
-            self.model.val_length = len(val_dataloader)
+            self.model.train_length = len(train_dataloader.dataset)
+            self.model.val_length = len(val_dataloader.dataset)
 
             self.alert(
                 title=f'Experiment #{i} for {self.experiment_name} started!',
@@ -85,7 +85,7 @@ class Experiment(Base):
             text=f'Test dataloader size: {len(test_dataloader.dataset)}'
         )
 
-        self.model.test_length = len(test_dataloader)
+        self.model.test_length = len(test_dataloader.dataset)
 
         self.trainer.test(self.model, test_dataloader)
 
