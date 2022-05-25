@@ -21,6 +21,10 @@ class Experiment(Base):
         self.index_path: str = ''
         self.test_path: str = ''
 
+    def wandb_log(self, metrics: dict):
+        if self.logging_on:
+            wandb.log(metrics)
+
     def run_training(self) -> None:
         self.alert(
             title=f'Training for {self.experiment_name} started!',
@@ -47,13 +51,13 @@ class Experiment(Base):
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
             experiment_time = time.time() - start
             self.training_time += experiment_time
-            wandb.log({'experiment_time': experiment_time, 'experiment_id': self.experiment_id})
+            self.wandb_log({'experiment_time': experiment_time, 'experiment_id': self.experiment_id})
 
             torch.cuda.empty_cache()
             self._evaluate()
             torch.cuda.empty_cache()
 
-        wandb.log({'training_time': self.training_time})
+        self.wandb_log({'training_time': self.training_time})
 
     def _index(self, index_dataloader) -> None:
         self.alert(
@@ -112,7 +116,7 @@ class Experiment(Base):
         )
 
         scores = evaluator.evaluate()
-        wandb.log(scores)
+        self.wandb_log(scores)
 
         self.alert(
             title=f'Evaluation finished!',
