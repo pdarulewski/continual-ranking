@@ -112,7 +112,7 @@ class BiEncoder(pl.LightningModule):
 
         return loss, correct_predictions.sum().item()
 
-    def _shared_step(self, batch: TokenizedTrainingSample, batch_idx):
+    def shared_step(self, batch: TokenizedTrainingSample, batch_idx):
         self.log('experiment_id', float(self.experiment_id))
         self.log('global_step', float(self.global_step))
 
@@ -125,7 +125,7 @@ class BiEncoder(pl.LightningModule):
         return loss, correct_predictions, q_pooled_out
 
     def training_step(self, batch: TokenizedTrainingSample, batch_idx):
-        loss_step, correct_predictions, _ = self._shared_step(batch, batch_idx)
+        loss_step, correct_predictions, _ = self.shared_step(batch, batch_idx)
 
         self.train_loss_roll += loss_step.item()
 
@@ -150,7 +150,7 @@ class BiEncoder(pl.LightningModule):
         return loss_step
 
     def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
-        val_loss, correct_predictions, _ = self._shared_step(batch, batch_idx)
+        val_loss, correct_predictions, _ = self.shared_step(batch, batch_idx)
 
         self.val_loss_step += val_loss.item()
         self.val_acc_step += correct_predictions
@@ -168,7 +168,7 @@ class BiEncoder(pl.LightningModule):
         self.index.append(index_pooled_out.to('cpu'))
 
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
-        test_loss, correct_predictions, q_pooled_out = self._shared_step(batch, batch_idx)
+        test_loss, correct_predictions, q_pooled_out = self.shared_step(batch, batch_idx)
 
         self.test_loss_step += test_loss.item()
         self.test_acc_step += correct_predictions
