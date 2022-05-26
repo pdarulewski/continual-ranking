@@ -61,5 +61,6 @@ class EWC(Strategy):
     def on_before_backward(
             self, trainer: ContinualTrainer, pl_module: "pl.LightningModule", loss: torch.Tensor
     ) -> torch.Tensor:
-        loss += self.ewc_lambda * self._penalty(pl_module)
+        if trainer.task_id > 0:
+            loss += self.ewc_lambda * self._penalty(pl_module)
         return loss
