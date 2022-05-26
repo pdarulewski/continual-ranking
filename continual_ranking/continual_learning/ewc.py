@@ -28,12 +28,14 @@ class EWC(Strategy):
             self._means[n] = p.data
 
     def to_device(self, batch: TokenizedTrainingSample):
-        batch.question_ids = batch.question_ids.to(self.device)
-        batch.question_segments = batch.question_segments.to(self.device)
-        batch.question_attn_mask = batch.question_attn_mask.to(self.device)
-        batch.context_ids = batch.context_ids.to(self.device)
-        batch.ctx_segments = batch.ctx_segments.to(self.device)
-        batch.ctx_attn_mask = batch.ctx_attn_mask.to(self.device)
+        batch = TokenizedTrainingSample(
+            batch.question_ids.to(self.device),
+            batch.question_segments.to(self.device),
+            batch.question_attn_mask.to(self.device),
+            batch.context_ids.to(self.device),
+            batch.ctx_segments.to(self.device),
+            batch.ctx_attn_mask.to(self.device),
+        )
 
         return batch
 
