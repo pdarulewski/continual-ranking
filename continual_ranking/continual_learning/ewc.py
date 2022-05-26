@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 
 from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
 from continual_ranking.continual_learning.strategy import Strategy
+from continual_ranking.dpr.data.train_dataset import TokenizedTrainingSample
 from continual_ranking.dpr.models import BiEncoder
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,16 @@ class EWC(Strategy):
         for n, p in deepcopy(self.params).items():
             self._means[n] = p.data
 
+    def to_device(self, batch: TokenizedTrainingSample):
+        batch.question_ids = batch.question_ids.to(self.device)
+        batch.question_segments = batch.question_segments.to(self.device)
+        batch.question_attn_mask = batch.question_attn_mask.to(self.device)
+        batch.context_ids = batch.context_ids.to(self.device)
+        batch.ctx_segments = batch.ctx_segments.to(self.device)
+        batch.ctx_attn_mask = batch.ctx_attn_mask.to(self.device)
+
+        return batch
+
     def _diag_fisher(self, pl_module: Union["pl.LightningModule", BiEncoder], dataloader: DataLoader):
         precision_matrices = {}
         for n, p in deepcopy(self.params).items():
@@ -35,7 +46,7 @@ class EWC(Strategy):
         pl_module.eval()
         for batch_idx, batch in enumerate(dataloader):
             pl_module.zero_grad()
-            batch.to(self.device)
+            batch = self.to_device(batch)
             loss, _, _ = pl_module.shared_step(batch, batch_idx)
             loss.backward()
 
