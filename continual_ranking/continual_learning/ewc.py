@@ -53,7 +53,8 @@ class EWC(Strategy):
             loss.backward()
 
             for n, p in pl_module.named_parameters():
-                precision_matrices[n].data += p.grad.data ** 2 / len(dataloader)
+                if p.grad is not None:
+                    precision_matrices[n].data += p.grad.data ** 2 / len(dataloader)
 
         precision_matrices = {n: p for n, p in precision_matrices.items()}
         return precision_matrices
