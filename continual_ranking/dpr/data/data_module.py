@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 from typing import Optional, List
@@ -11,6 +12,8 @@ from torch.utils.data import DataLoader
 from continual_ranking.dpr.data.file_handler import read_json_file
 from continual_ranking.dpr.data.index_dataset import IndexDataset, IndexTokenizer
 from continual_ranking.dpr.data.train_dataset import TrainDataset, TrainTokenizer
+
+logger = logging.getLogger(__name__)
 
 
 class DataModule(pl.LightningDataModule):
@@ -42,6 +45,7 @@ class DataModule(pl.LightningDataModule):
             chunk_sizes = [int(size * split_size) for size in chunk_sizes]
 
         if self.strategy == 'baseline':
+            logger.info('Preparing baseline dataset')
             chunks = data[:chunk_sizes[-1]]
             chunks = [TrainDataset(chunks, self.cfg.negatives_amount, tokenizer)]
 
@@ -50,11 +54,15 @@ class DataModule(pl.LightningDataModule):
                 slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1]]
                 chunks.append(slice_)
 
-            if self.strategy == 'replay':
+            if self.strategy.startswith('replay'):
+                logger.info('Preparing replay dataset')
                 replay = [list(np.random.choice(chunk, int(len(chunk) * 0.2))) for chunk in chunks[:-1]]
                 replay = [[], *replay]
 
-                chunks = [chunk + subset for chunk, subset in zip(chunks, replay)]
+                if self.strategy == 'replay_same_chunks':
+                    chunks = [chunk[len(subset):] + subset for chunk, subset in zip(chunks, replay)]
+                else:
+                    chunks = [chunk + subset for chunk, subset in zip(chunks, replay)]
 
                 for chunk in chunks[1:]:
                     random.shuffle(chunk)
