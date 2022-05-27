@@ -1,10 +1,11 @@
 import os
 import random
-from typing import Optional
+from typing import Optional, List
 
 import hydra
 import numpy as np
 import pytorch_lightning as pl
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from continual_ranking.dpr.data.file_handler import read_json_file
@@ -13,7 +14,7 @@ from continual_ranking.dpr.data.train_dataset import TrainDataset, TrainTokenize
 
 
 class DataModule(pl.LightningDataModule):
-    def __init__(self, cfg):
+    def __init__(self, cfg: DictConfig):
         super().__init__()
         self.cfg = cfg
 
@@ -50,14 +51,12 @@ class DataModule(pl.LightningDataModule):
                 chunks.append(slice_)
 
             if self.strategy == 'replay':
-                replay = [list(np.random.choice(chunk, int(len(chunk) * 0.2))) for chunk in chunks]
-
-                for i, subset in enumerate(range(len(replay) - 1)):
-                    replay[i + 1] += replay[i]
+                replay = [list(np.random.choice(chunk, int(len(chunk) * 0.2))) for chunk in chunks[:-1]]
+                replay = [[], *replay]
 
                 chunks = [chunk + subset for chunk, subset in zip(chunks, replay)]
 
-                for chunk in chunks:
+                for chunk in chunks[1:]:
                     random.shuffle(chunk)
 
             chunks = [TrainDataset(chunk, self.cfg.negatives_amount, tokenizer) for chunk in chunks]
@@ -76,7 +75,7 @@ class DataModule(pl.LightningDataModule):
         else:
             self.train_set_length = sum([len(dataset) for dataset in self.train_sets])
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> List[DataLoader]:
         return [
             DataLoader(
                 train_set,
@@ -85,7 +84,7 @@ class DataModule(pl.LightningDataModule):
             ) for train_set in self.train_sets
         ]
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> List[DataLoader]:
         return [
             DataLoader(
                 eval_set,
@@ -94,7 +93,7 @@ class DataModule(pl.LightningDataModule):
             ) for eval_set in self.eval_sets
         ]
 
-    def index_dataloader(self):
+    def index_dataloader(self) -> DataLoader:
         index_tokenizer = IndexTokenizer(self.cfg.biencoder.sequence_length)
         index_set = IndexDataset(read_json_file(self.index_set_path), index_tokenizer)
 
@@ -104,7 +103,7 @@ class DataModule(pl.LightningDataModule):
             num_workers=self.cfg.biencoder.num_workers
         )
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
         test_set = TrainDataset(
             read_json_file(self.test_set_path), self.cfg.negatives_amount, self.train_tokenizer)
 
