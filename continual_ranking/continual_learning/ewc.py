@@ -62,8 +62,9 @@ class EWC(Strategy):
     def _penalty(self, pl_module: "pl.LightningModule"):
         loss = 0
         for n, p in pl_module.named_parameters():
-            _loss = self.fisher_matrix[n] * (p - self._means[n]) ** 2
-            loss += _loss.sum()
+            if n in self.fisher_matrix and n in self._means:
+                _loss = self.fisher_matrix[n] * (p - self._means[n]) ** 2
+                loss += _loss.sum()
         return loss
 
     def on_train_start(self, trainer: ContinualTrainer, pl_module: "pl.LightningModule") -> None:
