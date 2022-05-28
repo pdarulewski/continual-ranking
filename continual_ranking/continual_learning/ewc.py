@@ -50,7 +50,7 @@ class EWC(Strategy):
         for batch_idx, batch in enumerate(dataloader):
             pl_module.zero_grad()
             batch = self.to_device(batch)
-            loss, _, _ = pl_module.shared_step(batch, batch_idx)
+            loss, _, _ = pl_module.shared_step(batch, batch_idx, False)
             loss.backward()
 
             for n, p in pl_module.named_parameters():

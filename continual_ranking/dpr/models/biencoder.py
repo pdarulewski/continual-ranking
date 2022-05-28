@@ -112,9 +112,10 @@ class BiEncoder(pl.LightningModule):
 
         return loss, correct_predictions.sum().item()
 
-    def shared_step(self, batch: TokenizedTrainingSample, batch_idx):
-        self.log('experiment_id', float(self.experiment_id))
-        self.log('global_step', float(self.global_step))
+    def shared_step(self, batch: TokenizedTrainingSample, batch_idx, log=True):
+        if log:
+            self.log('experiment_id', float(self.experiment_id))
+            self.log('global_step', float(self.global_step))
 
         q_pooled_out, ctx_pooled_out = self.forward(batch)
 
