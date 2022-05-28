@@ -20,6 +20,7 @@ class EWC(Strategy):
         self.ewc_lambda = ewc_lambda
 
         self.device = None
+        self.penalty = 0
         self.params = {}
         self._means = {}
         self.fisher_matrix = {}
@@ -67,15 +68,24 @@ class EWC(Strategy):
                 loss += _loss.sum()
         return loss
 
-    def on_train_start(self, trainer: ContinualTrainer, pl_module: "pl.LightningModule") -> None:
+    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         self.device = pl_module.device
-        if trainer.task_id > 0:
-            self.params = {n: p for n, p in pl_module.named_parameters() if p.requires_grad}
-            self.fisher_matrix = self._diag_fisher(pl_module, trainer.train_dataloader)
+
+    def on_train_start(self, trainer: ContinualTrainer, pl_module: "pl.LightningModule") -> None:
+        self.params = {}
+        self.fisher_matrix = {}
+
+    def on_train_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        self.params = {n: p for n, p in pl_module.named_parameters() if p.requires_grad}
+        self.fisher_matrix = self._diag_fisher(pl_module, trainer.train_dataloader)
+        self.penalty = self._penalty(pl_module)
 
     def on_before_backward(
-            self, trainer: ContinualTrainer, pl_module: "pl.LightningModule", loss: torch.Tensor
+            self,
+            trainer: ContinualTrainer,
+            pl_module: "pl.LightningModule",
+            loss: torch.Tensor
     ) -> torch.Tensor:
         if trainer.task_id > 0:
-            loss += self.ewc_lambda * self._penalty(pl_module)
+            loss += self.ewc_lambda * self.penalty
         return loss
