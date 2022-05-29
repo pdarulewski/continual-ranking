@@ -189,7 +189,7 @@ class BiEncoder(pl.LightningModule):
 
         for n, p in self.named_parameters():
             if p.grad is not None:
-                self.precision_matrices[n].data += p.grad.data ** 2
+                self.precision_matrices[n].data += p.grad.data.to('cpu') ** 2
 
         return ewc_loss
 
