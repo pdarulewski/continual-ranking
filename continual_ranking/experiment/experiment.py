@@ -48,14 +48,15 @@ class Experiment(Base):
             self.trainer.task_id = self.experiment_id
 
             start = time.time()
-            if i > 0 and self.ewc:
+            self.trainer.fit(self.model, train_dataloader, val_dataloader)
+
+            if self.ewc:
                 self.alert(
                     title=f'EWC for #{i}',
                     text='Importances started.'
                 )
                 self.ewc.calculate_importances(self.trainer, self.model, train_dataloader)
 
-            self.trainer.fit(self.model, train_dataloader, val_dataloader)
             experiment_time = time.time() - start
 
             self.training_time += experiment_time
