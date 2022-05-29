@@ -38,6 +38,8 @@ class Base:
         self.loggers: List[pl.loggers.LightningLoggerBase] = []
         self.callbacks: List[pl.Callback] = []
 
+        self.ewc: Optional[EWC] = None
+
     def alert(self, title: str, text: str = '', **kwargs) -> None:
         if self.logging_on:
             wandb.alert(title=title, text=text, **kwargs)
@@ -124,7 +126,8 @@ class Base:
 
     def setup_strategies(self) -> None:
         if self.cfg.experiment.strategy == 'ewc':
-            strategy = EWC(**self.cfg.ewc)
+            self.ewc = EWC(**self.cfg.ewc)
+            strategy = self.ewc
         elif self.cfg.experiment.strategy == 'gem':
             strategy = GEM(**self.cfg.gem)
         else:

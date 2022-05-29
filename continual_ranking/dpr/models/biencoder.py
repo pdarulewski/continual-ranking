@@ -4,7 +4,6 @@ from typing import Tuple, Union
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-import wandb
 from torch import Tensor
 from torch.optim import AdamW, Optimizer
 
@@ -53,6 +52,9 @@ class BiEncoder(pl.LightningModule):
         self.test_length = 0
         self.test_acc_step = 0
         self.test_loss_step = 0
+
+        self.ewc_mode = False
+        self.precision_matrices = {}
 
     def log_metrics(self, metrics: dict):
         for key, value in metrics.items():
@@ -179,9 +181,23 @@ class BiEncoder(pl.LightningModule):
         self.test.append(q_pooled_out.to('cpu'))
         return test_loss
 
+    def _ewc_step(self, batch: TokenizedTrainingSample, batch_idx):
+        with torch.enable_grad():
+            self.zero_grad()
+            ewc_loss, _, _ = self.shared_step(batch, batch_idx, False)
+        ewc_loss.backward()
+
+        for n, p in self.named_parameters():
+            if p.grad is not None:
+                self.precision_matrices[n].data += p.grad.data ** 2
+
+        return ewc_loss
+
     def test_step(self, batch, batch_idx) -> None:
         if self.index_mode:
             self._index_step(batch)
+        elif self.ewc_mode:
+            self._ewc_step(batch, batch_idx)
         else:
             self._test_step(batch, batch_idx)
 
@@ -194,11 +210,9 @@ class BiEncoder(pl.LightningModule):
         self.train_acc_roll = 0
 
     def on_train_epoch_end(self) -> None:
-        self.log_metrics(
-            {
-                'train/acc_epoch': self.train_acc_roll / self.train_length
-            }
-        )
+        self.log_metrics({
+            'train/acc_epoch': self.train_acc_roll / self.train_length
+        })
 
     def on_validation_epoch_start(self) -> None:
         self.val_acc_step = 0
@@ -214,23 +228,10 @@ class BiEncoder(pl.LightningModule):
     def on_test_epoch_start(self) -> None:
         self.test_acc_step = 0
 
-        wandb.log({
-            'val/loss_experiment': self.val_loss_avg / self.validations_amount,
-            'val/acc_experiment':  self.val_acc_avg / self.validations_amount,
-            'experiment_id':       self.experiment_id
-        })
-
     def on_test_epoch_end(self) -> None:
         if self.index_mode:
             self.index = torch.cat(self.index)
+        if self.ewc_mode:
+            return
         else:
-            test_loss = self.test_loss_step / self.test_length
-            test_acc = self.test_acc_step / self.test_length
-            self.log('test/acc_epoch', test_acc)
-            wandb.log({
-                'test/loss_experiment': test_loss,
-                'test/acc_experiment':  test_acc,
-                'experiment_id':        self.experiment_id
-            })
-
             self.test = torch.cat(self.test)
