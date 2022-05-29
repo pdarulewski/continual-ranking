@@ -231,7 +231,7 @@ class BiEncoder(pl.LightningModule):
     def on_test_epoch_end(self) -> None:
         if self.index_mode:
             self.index = torch.cat(self.index)
-        if self.ewc_mode:
+        elif self.ewc_mode:
             return
         else:
             self.test = torch.cat(self.test)
