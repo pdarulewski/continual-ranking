@@ -42,6 +42,7 @@ class DataModule(pl.LightningDataModule):
             split_size: float = 0
     ) -> Generator[DataLoader, None, None]:
         data = read_json_file(dataset_path)
+        random.seed(42)
         random.shuffle(data)
         chunks = []
 
@@ -61,20 +62,20 @@ class DataModule(pl.LightningDataModule):
                 slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1]]
                 chunks.append(slice_)
 
-            if self.strategy.startswith('replay'):
-                logger.info('Preparing replay dataset')
-                replay = [list(np.random.choice(chunk, int(len(chunk) * 0.2))) for chunk in chunks[:-1]]
-                replay = [[], *replay]
-
-                if self.strategy == 'replay_same_chunks':
-                    chunks = [chunk[len(subset):] + subset for chunk, subset in zip(chunks, replay)]
-                else:
-                    chunks = [chunk + subset for chunk, subset in zip(chunks, replay)]
-
-                for chunk in chunks[1:]:
-                    random.shuffle(chunk)
-
         del data
+
+        if self.strategy.startswith('replay'):
+            logger.info('Preparing replay dataset')
+            replay = [list(np.random.choice(chunk, int(len(chunk) * 0.2))) for chunk in chunks[:-1]]
+            replay = [[], *replay]
+
+            if self.strategy == 'replay':
+                chunks = [chunk + subset for chunk, subset in zip(chunks, replay)]
+            else:
+                chunks = [chunk[len(subset):] + subset for chunk, subset in zip(chunks, replay)]
+
+            for chunk in chunks[1:]:
+                random.shuffle(chunk)
 
         if is_train:
             self.train_set_length = sum([len(chunk) for chunk in chunks])
