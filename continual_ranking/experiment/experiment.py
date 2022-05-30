@@ -59,6 +59,8 @@ class Experiment(Base):
 
             experiment_time = time.time() - start
 
+            del train_dataloader, val_dataloader
+
             self.training_time += experiment_time
             self.wandb_log({'experiment_time': experiment_time, 'experiment_id': self.experiment_id})
 
@@ -125,6 +127,9 @@ class Experiment(Base):
         )
 
         scores = evaluator.evaluate()
+
+        del index_dataloader, test_dataloader
+
         self.wandb_log(scores)
 
         self.alert(
