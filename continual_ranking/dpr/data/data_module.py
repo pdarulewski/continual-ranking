@@ -1,7 +1,7 @@
 import logging
 import os
 import random
-from typing import Optional, List
+from typing import Optional, List, Generator
 
 import hydra
 import numpy as np
@@ -34,7 +34,13 @@ class DataModule(pl.LightningDataModule):
 
         self.train_tokenizer = TrainTokenizer(self.cfg.biencoder.sequence_length)
 
-    def _make_set_splits(self, dataset_path: str, tokenizer, split_size: float = 0):
+    def _make_set_splits(
+            self,
+            dataset_path: str,
+            batch_size: int,
+            is_train: bool = False,
+            split_size: float = 0
+    ) -> Generator[DataLoader, None, None]:
         data = read_json_file(dataset_path)
         random.shuffle(data)
         chunks = []
@@ -47,7 +53,8 @@ class DataModule(pl.LightningDataModule):
         if self.strategy == 'baseline':
             logger.info('Preparing baseline dataset')
             chunks = data[:chunk_sizes[-1]]
-            chunks = [TrainDataset(chunks, self.cfg.negatives_amount, tokenizer)]
+            if is_train:
+                self.train_set_length = len(chunks)
 
         else:
             for i in range(len(chunk_sizes) - 1):
@@ -67,43 +74,43 @@ class DataModule(pl.LightningDataModule):
                 for chunk in chunks[1:]:
                     random.shuffle(chunk)
 
-            chunks = [TrainDataset(chunk, self.cfg.negatives_amount, tokenizer) for chunk in chunks]
+        if is_train:
+            self.train_set_length = sum([len(chunk) for chunk in chunks])
 
-        return chunks
+        for chunk in chunks:
+            dataset = TrainDataset(chunk, self.cfg.negatives_amount, self.train_tokenizer)
+            yield DataLoader(
+                dataset,
+                batch_size=batch_size,
+                num_workers=self.cfg.biencoder.num_workers
+            )
 
     def prepare_data(self) -> None:
         pass
 
     def setup(self, stage: Optional[str] = None):
-        self.train_sets = self._make_set_splits(self.train_set_path, self.train_tokenizer)
-        self.eval_sets = self._make_set_splits(self.eval_set_path, self.train_tokenizer, self.cfg.datasets.split_size)
+        self.train_sets = self._make_set_splits(
+            dataset_path=self.train_set_path,
+            batch_size=self.cfg.biencoder.train_batch_size,
+            is_train=True
+        )
 
-        if self.strategy == 'baseline':
-            self.train_set_length = len(self.train_sets)
-        else:
-            self.train_set_length = sum([len(dataset) for dataset in self.train_sets])
+        self.eval_sets = self._make_set_splits(
+            dataset_path=self.eval_set_path,
+            batch_size=self.cfg.biencoder.val_batch_size,
+            split_size=self.cfg.datasets.split_size
+        )
 
     def train_dataloader(self) -> List[DataLoader]:
-        return [
-            DataLoader(
-                train_set,
-                batch_size=self.cfg.biencoder.train_batch_size,
-                num_workers=self.cfg.biencoder.num_workers
-            ) for train_set in self.train_sets
-        ]
+        return self.train_sets
 
     def val_dataloader(self) -> List[DataLoader]:
-        return [
-            DataLoader(
-                eval_set,
-                batch_size=self.cfg.biencoder.val_batch_size,
-                num_workers=self.cfg.biencoder.num_workers
-            ) for eval_set in self.eval_sets
-        ]
+        return self.eval_sets
 
     def index_dataloader(self) -> DataLoader:
         index_tokenizer = IndexTokenizer(self.cfg.biencoder.sequence_length)
-        index_set = IndexDataset(read_json_file(self.index_set_path), index_tokenizer)
+        data = read_json_file(self.index_set_path)
+        index_set = IndexDataset(data, index_tokenizer)
 
         return DataLoader(
             index_set,
@@ -112,8 +119,8 @@ class DataModule(pl.LightningDataModule):
         )
 
     def test_dataloader(self) -> DataLoader:
-        test_set = TrainDataset(
-            read_json_file(self.test_set_path), self.cfg.negatives_amount, self.train_tokenizer)
+        data = read_json_file(self.test_set_path)
+        test_set = TrainDataset(data, self.cfg.negatives_amount, self.train_tokenizer)
 
         return DataLoader(
             test_set,
