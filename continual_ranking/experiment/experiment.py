@@ -5,6 +5,7 @@ import torch
 import wandb
 from omegaconf import DictConfig
 from omegaconf import OmegaConf
+from torch.utils.data import DataLoader
 
 from continual_ranking.dpr.data.file_handler import pickle_dump
 from continual_ranking.dpr.evaluator import Evaluator
@@ -21,6 +22,14 @@ class Experiment(Base):
 
         self.index_path: str = ''
         self.test_path: str = ''
+
+    def shutdown_workers(self, dataloader: DataLoader):
+        try:
+            dataloader._iterator._shutdown_workers()
+        except Exception:
+            pass
+
+        dataloader._iterator = None
 
     def wandb_log(self, metrics: dict):
         if self.logging_on:
@@ -77,7 +86,8 @@ class Experiment(Base):
 
             experiment_time = time.time() - start
 
-            del train_dataloader, val_dataloader
+            self.shutdown_workers(train_dataloader)
+            self.shutdown_workers(val_dataloader)
 
             self.training_time += experiment_time
             self.wandb_log({'experiment_time': experiment_time, 'experiment_id': self.experiment_id})
@@ -146,7 +156,8 @@ class Experiment(Base):
 
         scores = evaluator.evaluate()
 
-        del index_dataloader, test_dataloader
+        self.shutdown_workers(index_dataloader)
+        self.shutdown_workers(test_dataloader)
 
         self.wandb_log(scores)
 
