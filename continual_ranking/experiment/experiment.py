@@ -1,4 +1,5 @@
 import time
+from copy import deepcopy
 
 import torch
 import wandb
@@ -55,7 +56,24 @@ class Experiment(Base):
                     title=f'EWC for #{i}',
                     text='Importances started.'
                 )
-                self.ewc.calculate_importances(self.trainer, self.model, train_dataloader)
+                self.ewc.params = {n: p for n, p in self.model.named_parameters() if p.requires_grad}
+
+                precision_matrices = {}
+                for n, p in deepcopy(self.ewc.params).items():
+                    p.data.zero_()
+                    precision_matrices[n] = p.data
+
+                self.model.ewc_mode = True
+                self.model.precision_matrices = precision_matrices
+                self.trainer.test(self.model, train_dataloader)
+                self.model.ewc_mode = False
+
+                for n in precision_matrices:
+                    if precision_matrices[n] is not None:
+                        precision_matrices[n] /= len(train_dataloader)
+
+                self.ewc.fisher_matrix = precision_matrices
+                self.ewc.penalty = self.ewc._penalty(self.model)
 
             experiment_time = time.time() - start
 
