@@ -234,4 +234,7 @@ class BiEncoder(pl.LightningModule):
         elif self.ewc_mode:
             return
         else:
+            test_acc = self.test_acc_step / self.test_length
+            self.log('test/acc_epoch', test_acc)
+
             self.test = torch.cat(self.test)
