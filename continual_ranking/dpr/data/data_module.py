@@ -74,6 +74,8 @@ class DataModule(pl.LightningDataModule):
                 for chunk in chunks[1:]:
                     random.shuffle(chunk)
 
+        del data
+
         if is_train:
             self.train_set_length = sum([len(chunk) for chunk in chunks])
 
