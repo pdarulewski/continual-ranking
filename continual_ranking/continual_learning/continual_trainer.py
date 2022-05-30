@@ -6,9 +6,10 @@ from pytorch_lightning.loops import FitLoop
 
 class ContinualTrainer(pl.Trainer):
 
-    def __init__(self, *args: Any, **kwargs: Any):
+    def __init__(self, tasks: int = 0, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.task_id: int = 0
+        self.tasks: int = tasks
         self.fit_loop = ContinualFitLoop(max_epochs=kwargs['max_epochs'])
 
 

@@ -1,9 +1,8 @@
 import logging
-from copy import deepcopy
+import random
 
 import pytorch_lightning as pl
 import torch
-from torch.utils.data import DataLoader
 
 from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
 from continual_ranking.continual_learning.strategy import Strategy
@@ -17,49 +16,45 @@ class EWC(Strategy):
         super().__init__()
         self.ewc_lambda = ewc_lambda
 
-        self.penalty = 0
-        self.params = {}
-        self._means = {}
+        self.saved_params = {}
         self.fisher_matrix = {}
 
-        for n, p in deepcopy(self.params).items():
-            self._means[n] = p.data
-
-    def _diag_fisher(self, trainer: ContinualTrainer, pl_module: BiEncoder, train_dataloader: DataLoader):
-        precision_matrices = {}
-        for n, p in deepcopy(self.params).items():
-            p.data.zero_()
-            precision_matrices[n] = p.data
+    def _diag_fisher(self, trainer: ContinualTrainer, pl_module: BiEncoder):
+        fisher_matrix = {}
+        for n, p in self.saved_params:
+            t = torch.zeros_like(p.data)
+            fisher_matrix[n] = t
 
         pl_module.ewc_mode = True
-        pl_module.precision_matrices = precision_matrices
-        trainer.test(pl_module, train_dataloader)
+        pl_module.fisher_matrix = fisher_matrix
+        trainer.test(pl_module, trainer.train_dataloader)
         pl_module.ewc_mode = False
 
-        for n in precision_matrices:
-            if precision_matrices[n] is not None:
-                precision_matrices[n] /= len(train_dataloader)
+        for n in fisher_matrix:
+            fisher_matrix[n] /= len(trainer.train_dataloader)
 
-        return precision_matrices
+        return fisher_matrix
 
-    def calculate_importances(
-            self, trainer: ContinualTrainer, pl_module: BiEncoder, train_dataloader: DataLoader
-    ) -> None:
-        self.params = {n: p for n, p in pl_module.named_parameters() if p.requires_grad}
-        self.fisher_matrix = self._diag_fisher(trainer, pl_module, train_dataloader)
-        self.penalty = self._penalty(pl_module)
+    def on_train_end(self, trainer: ContinualTrainer, pl_module: BiEncoder) -> None:
+        if trainer.tasks > trainer.task_id:
+            logger.info('Calculating Fisher Matrix for EWC')
+
+            self.saved_params = {}
+            for n, p in pl_module.named_parameters():
+                if random.random() < 0.7:
+                    continue
+                if p.requires_grad and p is not None:
+                    self.saved_params[n] = p.data.detach().clone()
+
+            self.fisher_matrix = self._diag_fisher(trainer, pl_module)
 
     def _penalty(self, pl_module: "pl.LightningModule"):
-        loss = 0
+        penalty = 0
         for n, p in pl_module.named_parameters():
-            if n in self.fisher_matrix and n in self._means:
-                _loss = self.fisher_matrix[n] * (p - self._means[n]) ** 2
-                loss += _loss.sum()
-        return loss
-
-    def on_train_start(self, trainer: ContinualTrainer, pl_module: "pl.LightningModule") -> None:
-        self.params = {}
-        self.fisher_matrix = {}
+            if n in self.fisher_matrix:
+                loss = self.fisher_matrix[n] * (p - self.saved_params[n]) ** 2
+                penalty += loss.sum()
+        return penalty
 
     def on_before_backward(
             self,
@@ -68,5 +63,5 @@ class EWC(Strategy):
             loss: torch.Tensor
     ) -> torch.Tensor:
         if trainer.task_id > 0:
-            loss += self.ewc_lambda * self.penalty
+            loss += self.ewc_lambda * self._penalty(pl_module)
         return loss

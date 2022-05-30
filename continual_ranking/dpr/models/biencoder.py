@@ -54,7 +54,7 @@ class BiEncoder(pl.LightningModule):
         self.test_loss_step = 0
 
         self.ewc_mode = False
-        self.precision_matrices = {}
+        self.fisher_matrix = {}
 
     def log_metrics(self, metrics: dict):
         for key, value in metrics.items():
@@ -188,8 +188,7 @@ class BiEncoder(pl.LightningModule):
         ewc_loss.backward()
 
         for n, p in self.named_parameters():
-            if p.grad is not None and n in self.precision_matrices:
-                self.precision_matrices[n].data += p.grad.data.to('cpu') ** 2
+            self.fisher_matrix[n].data += p.grad.data.detach().clone() ** 2
 
         return ewc_loss
 

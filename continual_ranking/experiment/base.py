@@ -114,6 +114,7 @@ class Base:
     def setup_trainer(self) -> None:
         logger.info('Setting up trainer')
         self.trainer = ContinualTrainer(
+            tasks=len(self.cfg.experiment.sizes) - 2,
             max_epochs=self.cfg.biencoder.max_epochs,
             accelerator=self.cfg.device,
             gpus=-1 if self.cfg.device == 'gpu' else 0,
