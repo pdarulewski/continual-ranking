@@ -90,7 +90,7 @@ class Base:
         logger.info('Setting up callbacks')
         self.callbacks = [
             ModelCheckpoint(
-                filename=self.experiment_name + '-{epoch:02d}-{val_loss:.2f}',
+                filename=self.experiment_name + '-{epoch:02d}-{val/loss_epoch:.2f}',
                 monitor='val/loss_epoch',
             ),
             EarlyStopping(
@@ -122,6 +122,7 @@ class Base:
             logger=self.loggers,
             callbacks=self.callbacks,
             fast_dev_run=self.fast_dev_run,
+            num_sanity_val_steps=0
         )
 
     def setup_strategies(self) -> None:
