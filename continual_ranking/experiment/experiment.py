@@ -1,7 +1,6 @@
 import gc
 import logging
 import time
-import tracemalloc
 
 import torch
 import wandb
@@ -38,7 +37,6 @@ class Experiment(Base):
 
         id_ = self.cfg.experiment.get('id')
 
-        tracemalloc.start()
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
             self.model.train_length = len(train_dataloader.dataset)
             self.model.val_length = len(val_dataloader.dataset)
