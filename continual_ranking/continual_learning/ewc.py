@@ -22,7 +22,7 @@ class EWC(Strategy):
     @torch.no_grad()
     def _diag_fisher(self, trainer: ContinualTrainer, pl_module: BiEncoder):
         fisher_matrix = {}
-        for n, p in self.saved_params:
+        for n, p in self.saved_params.items():
             t = torch.zeros_like(p.data)
             fisher_matrix[n] = t
 

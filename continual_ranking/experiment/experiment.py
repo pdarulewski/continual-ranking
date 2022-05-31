@@ -61,7 +61,8 @@ class Experiment(Base):
             self.wandb_log({'experiment_time': experiment_time, 'experiment_id': self.experiment_id})
 
             torch.cuda.empty_cache()
-            self._evaluate()
+            with torch.no_grad():
+                self._evaluate()
             torch.cuda.empty_cache()
 
             gc.collect()
