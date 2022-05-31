@@ -1,5 +1,4 @@
 import gc
-import linecache
 import logging
 import time
 import tracemalloc
@@ -14,29 +13,6 @@ from continual_ranking.dpr.evaluator import Evaluator
 from continual_ranking.experiment.base import Base
 
 logger = logging.getLogger(__name__)
-
-
-def display_top(snapshot, key_type='lineno', limit=20):
-    snapshot = snapshot.filter_traces((
-        tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
-    ))
-    top_stats = snapshot.statistics(key_type)
-
-    logger.info("Top %s lines" % limit)
-    for index, stat in enumerate(top_stats[:limit], 1):
-        frame = stat.traceback[0]
-        logger.info("#%s: %s:%s: %.1f KiB"
-                    % (index, frame.filename, frame.lineno, stat.size / 1024))
-        line = linecache.getline(frame.filename, frame.lineno).strip()
-        if line:
-            logger.info('    %s' % line)
-
-    other = top_stats[limit:]
-    if other:
-        size = sum(stat.size for stat in other)
-        logger.info("%s other: %.1f KiB" % (len(other), size / 1024))
-    total = sum(stat.size for stat in top_stats)
-    logger.info("Total allocated size: %.1f KiB" % (total / 1024))
 
 
 class Experiment(Base):
@@ -64,10 +40,6 @@ class Experiment(Base):
 
         tracemalloc.start()
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
-            if i == 0:
-                snapshot_1 = tracemalloc.take_snapshot()
-                display_top(snapshot_1)
-
             self.model.train_length = len(train_dataloader.dataset)
             self.model.val_length = len(val_dataloader.dataset)
 
@@ -93,12 +65,6 @@ class Experiment(Base):
             torch.cuda.empty_cache()
 
             gc.collect()
-
-            snapshot_2 = tracemalloc.take_snapshot()
-            top_stats = snapshot_2.compare_to(snapshot_1, 'lineno')
-            for stat in top_stats[:20]:
-                logger.info(stat)
-            display_top(snapshot_2)
 
         self.wandb_log({'training_time': self.training_time})
 
