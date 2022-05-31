@@ -112,7 +112,7 @@ class BiEncoder(pl.LightningModule):
         max_score, max_idxs = torch.max(softmax_scores, 1)
         correct_predictions = (max_idxs == torch.tensor(positive_ctx_indices).to(max_idxs.device)).sum()
 
-        return loss, correct_predictions.sum().item()
+        return loss, correct_predictions.sum().detach().item()
 
     def shared_step(self, batch: TokenizedTrainingSample, batch_idx, log=True):
         if log:
@@ -130,7 +130,7 @@ class BiEncoder(pl.LightningModule):
     def training_step(self, batch: TokenizedTrainingSample, batch_idx):
         loss_step, correct_predictions, _ = self.shared_step(batch, batch_idx)
 
-        self.train_loss_roll += loss_step.item()
+        self.train_loss_roll += loss_step.detach().item()
 
         self.train_acc_step += correct_predictions
         self.train_acc_roll += correct_predictions
@@ -155,7 +155,7 @@ class BiEncoder(pl.LightningModule):
     def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
         val_loss, correct_predictions, _ = self.shared_step(batch, batch_idx)
 
-        self.val_loss_step += val_loss.item()
+        self.val_loss_step += val_loss.detach().item()
         self.val_acc_step += correct_predictions
 
         self.log('val/loss_epoch', val_loss)
@@ -168,17 +168,17 @@ class BiEncoder(pl.LightningModule):
             batch.attention_mask,
         )
 
-        self.index.append(index_pooled_out.to('cpu'))
+        self.index.append(index_pooled_out.to('cpu').detach())
 
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
         test_loss, correct_predictions, q_pooled_out = self.shared_step(batch, batch_idx)
 
-        self.test_loss_step += test_loss.item()
+        self.test_loss_step += test_loss.detach().item()
         self.test_acc_step += correct_predictions
 
         self.log('test/loss_epoch', test_loss)
 
-        self.test.append(q_pooled_out.to('cpu'))
+        self.test.append(q_pooled_out.to('cpu').detach())
         return test_loss
 
     def _ewc_step(self, batch: TokenizedTrainingSample, batch_idx):
@@ -187,8 +187,9 @@ class BiEncoder(pl.LightningModule):
             ewc_loss, _, _ = self.shared_step(batch, batch_idx, False)
         ewc_loss.backward()
 
-        for n, p in self.named_parameters():
-            self.fisher_matrix[n].data += p.grad.data.detach().clone() ** 2
+        with torch.no_grad():
+            for n, p in self.named_parameters():
+                self.fisher_matrix[n].data += p.grad.data.detach().clone() ** 2
 
         return ewc_loss
 
@@ -229,11 +230,13 @@ class BiEncoder(pl.LightningModule):
 
     def on_test_epoch_end(self) -> None:
         if self.index_mode:
-            self.index = torch.cat(self.index)
+            with torch.no_grad():
+                self.index = torch.cat(self.index).detach()
         elif self.ewc_mode:
             return
         else:
             test_acc = self.test_acc_step / self.test_length
             self.log('test/acc_epoch', test_acc)
 
-            self.test = torch.cat(self.test)
+            with torch.no_grad():
+                self.test = torch.cat(self.test).detach()

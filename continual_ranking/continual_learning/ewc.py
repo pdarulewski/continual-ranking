@@ -19,6 +19,7 @@ class EWC(Strategy):
         self.saved_params = {}
         self.fisher_matrix = {}
 
+    @torch.no_grad()
     def _diag_fisher(self, trainer: ContinualTrainer, pl_module: BiEncoder):
         fisher_matrix = {}
         for n, p in self.saved_params:
@@ -48,6 +49,7 @@ class EWC(Strategy):
 
             self.fisher_matrix = self._diag_fisher(trainer, pl_module)
 
+    @torch.no_grad()
     def _penalty(self, pl_module: "pl.LightningModule"):
         penalty = 0
         for n, p in pl_module.named_parameters():

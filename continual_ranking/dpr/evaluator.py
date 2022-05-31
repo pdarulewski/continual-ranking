@@ -35,6 +35,7 @@ class Evaluator:
 
         self.experiment_id = experiment_id
 
+    @torch.no_grad()
     def _calculate_k_docs(self) -> None:
         test = pickle_load(self.test_path).to(self.device)
         index = pickle_load(self.index_path).to(self.device)
@@ -43,6 +44,7 @@ class Evaluator:
 
         self._k_docs()
 
+    @torch.no_grad()
     def _k_docs(self) -> None:
         tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
