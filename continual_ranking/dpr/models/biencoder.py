@@ -189,7 +189,8 @@ class BiEncoder(pl.LightningModule):
 
         with torch.no_grad():
             for n, p in self.named_parameters():
-                self.fisher_matrix[n].data += p.grad.data.detach().clone() ** 2
+                if n in self.fisher_matrix:
+                    self.fisher_matrix[n].data += p.grad.data.detach().clone() ** 2
 
         return ewc_loss
 
