@@ -19,24 +19,7 @@ class EWC(Strategy):
         self.saved_params = {}
         self.fisher_matrix = {}
 
-    @torch.no_grad()
-    def _diag_fisher(self, trainer: ContinualTrainer, pl_module: BiEncoder):
-        fisher_matrix = {}
-        for n, p in self.saved_params.items():
-            t = torch.zeros_like(p.data)
-            fisher_matrix[n] = t
-
-        pl_module.ewc_mode = True
-        pl_module.fisher_matrix = fisher_matrix
-        trainer.test(pl_module, trainer.train_dataloader)
-        pl_module.ewc_mode = False
-
-        for n in fisher_matrix:
-            fisher_matrix[n] /= len(trainer.train_dataloader)
-
-        return fisher_matrix
-
-    def on_train_end(self, trainer: ContinualTrainer, pl_module: BiEncoder) -> None:
+    def on_fit_end(self, trainer: ContinualTrainer, pl_module: BiEncoder) -> None:
         if trainer.tasks > trainer.task_id:
             logger.info('Calculating Fisher Matrix for EWC')
 
@@ -46,8 +29,6 @@ class EWC(Strategy):
                     continue
                 if p.requires_grad and p is not None:
                     self.saved_params[n] = p.data.detach().clone()
-
-            self.fisher_matrix = self._diag_fisher(trainer, pl_module)
 
     @torch.no_grad()
     def _penalty(self, pl_module: "pl.LightningModule"):
