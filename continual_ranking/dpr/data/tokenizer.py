@@ -1,3 +1,5 @@
+from typing import List, Union
+
 from transformers import BertTokenizer
 
 
@@ -7,7 +9,7 @@ class Tokenizer:
         self.max_length = max_length
         self.pad_to_max = True
 
-    def __call__(self, text: str):
+    def __call__(self, text: Union[str, List[str]]):
         tokens = self.tokenizer(
             text,
             add_special_tokens=True,

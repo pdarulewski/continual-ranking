@@ -1,0 +1,4 @@
+name: baseline_20k
+strategy: baseline
+sizes: [ 0, 20_000 ]
+id: 1

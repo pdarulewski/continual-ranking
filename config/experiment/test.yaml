@@ -1,0 +1,3 @@
+name: test
+strategy: naive
+sizes: [ 0, 1600, 3200, 4800 ]

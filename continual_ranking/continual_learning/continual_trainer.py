@@ -1,22 +1,37 @@
-from typing import Optional, Union
+from typing import Any
 
 import pytorch_lightning as pl
-from pytorch_lightning import LightningDataModule
-from pytorch_lightning.utilities.types import TRAIN_DATALOADERS, EVAL_DATALOADERS
+from pytorch_lightning.loops import FitLoop
 
 
 class ContinualTrainer(pl.Trainer):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.task_id: int = 0
 
-    def fit(
-            self,
-            model: "pl.LightningModule",
-            train_dataloaders: Optional[Union[TRAIN_DATALOADERS, LightningDataModule]] = None,
-            val_dataloaders: Optional[EVAL_DATALOADERS] = None,
-            datamodule: Optional[LightningDataModule] = None,
-            train_dataloader=None,
-            ckpt_path: Optional[str] = None,
-    ) -> None:
-        super().fit(model, train_dataloaders, val_dataloaders, datamodule, ckpt_path)
+    def __init__(self, tasks: int = 0, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.task_id: int = 0
+        self.tasks: int = tasks
+        self.fit_loop = ContinualFitLoop(max_epochs=kwargs['max_epochs'])
+
+
+class ContinualFitLoop(FitLoop):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def run(self, *args: Any, **kwargs: Any):
+        self.reset()
+
+        self.on_run_start()
+
+        self.trainer.should_stop = False
+
+        while not self.done:
+            try:
+                self.on_advance_start()
+                self.advance()
+                self.on_advance_end()
+                self._restarting = False
+            except StopIteration:
+                break
+        self._restarting = False
+
+        self.on_run_end()

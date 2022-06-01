@@ -3,24 +3,12 @@ defaults:
   - datasets
   - biencoder
   - strategies
+  - experiment: ewc
 
 seed: 42
 
 project_name: continual_ranking
 device: gpu
 fast_dev_run: false
-
-experiment_name: test_1k
-
-negatives_amount: 5
-
-strategy: baseline
-#  strategy: naive
-#  strategy: ewc
-#  strategy: gem
-#  strategy: rehearsal
-
-sizes: [ 0, 20_000, 25_000 ]
-#  sizes: [ 0, 20_000, 25_000, 30_000 ]
-#  sizes: [ 0, 20_000, 25_000, 30_000, 35_000 ]
-#  sizes: [ 0, 20_000, 25_000, 30_000, 35_000, 40_000 ]
+logging_on: true
+negatives_amount: 6

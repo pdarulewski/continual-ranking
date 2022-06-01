@@ -8,10 +8,10 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import seed_everything
 
-from continual_ranking.experiments.baseline import Baseline
+from continual_ranking.experiment.experiment import Experiment
 
 
-def setup_logging():
+def setup_logging() -> None:
     with open(os.path.join('config', 'logging.yaml'), 'r') as f:
         config = yaml.safe_load(f.read())
     logging.config.dictConfig(config)
@@ -24,11 +24,11 @@ def main(cfg: DictConfig):
 
     seed_everything(42, workers=True)
 
-    accelerator = 'gpu' if torch.cuda.is_available() else 'cpu'
+    accelerator = 'gpu' if torch.cuda.is_available() and cfg.device == 'gpu' else 'cpu'
 
     cfg.device = accelerator
 
-    baseline = Baseline(cfg)
+    baseline = Experiment(cfg)
     baseline.execute()
 
 

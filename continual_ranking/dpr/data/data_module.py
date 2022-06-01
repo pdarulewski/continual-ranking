@@ -1,18 +1,23 @@
+import logging
 import os
 import random
-from typing import Optional
+from typing import Optional, List, Generator
 
 import hydra
+import numpy as np
 import pytorch_lightning as pl
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from continual_ranking.dpr.data.file_handler import read_json_file
 from continual_ranking.dpr.data.index_dataset import IndexDataset, IndexTokenizer
 from continual_ranking.dpr.data.train_dataset import TrainDataset, TrainTokenizer
 
+logger = logging.getLogger(__name__)
+
 
 class DataModule(pl.LightningDataModule):
-    def __init__(self, cfg):
+    def __init__(self, cfg: DictConfig):
         super().__init__()
         self.cfg = cfg
 
@@ -23,79 +28,105 @@ class DataModule(pl.LightningDataModule):
 
         self.train_sets = None
         self.eval_sets = None
-        self.index_set = None
-        self.test_set = None
+        self.strategy = self.cfg.experiment.strategy
 
         self.train_set_length = 0
 
-    def _make_set_splits(self, dataset_path: str, tokenizer, split_size: float = 0):
+        self.train_tokenizer = TrainTokenizer(self.cfg.biencoder.sequence_length)
+
+    def _make_set_splits(
+            self,
+            dataset_path: str,
+            batch_size: int,
+            is_train: bool = False,
+            split_size: float = 0
+    ) -> Generator[DataLoader, None, None]:
         data = read_json_file(dataset_path)
+        random.seed(42)
         random.shuffle(data)
         chunks = []
 
-        chunk_sizes = self.cfg.sizes
+        chunk_sizes = self.cfg.experiment.sizes
 
         if split_size:
             chunk_sizes = [int(size * split_size) for size in chunk_sizes]
 
-        if self.cfg.strategy == 'baseline':
+        if self.strategy == 'baseline':
+            logger.info('Preparing baseline dataset')
             chunks = data[:chunk_sizes[-1]]
-            chunks = [TrainDataset(chunks, self.cfg.negatives_amount, tokenizer)]
+            if is_train:
+                self.train_set_length = len(chunks)
 
         else:
             for i in range(len(chunk_sizes) - 1):
                 slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1]]
                 chunks.append(slice_)
-            chunks = [TrainDataset(chunk, self.cfg.negatives_amount, tokenizer) for chunk in chunks]
 
-        return chunks
+        del data
+
+        if self.strategy.startswith('replay'):
+            logger.info('Preparing replay dataset')
+            replay = [list(np.random.choice(chunk, int(len(chunk) * 0.2))) for chunk in chunks[:-1]]
+            replay = [[], *replay]
+
+            if self.strategy == 'replay':
+                chunks = [chunk + subset for chunk, subset in zip(chunks, replay)]
+            else:
+                chunks = [chunk[len(subset):] + subset for chunk, subset in zip(chunks, replay)]
+
+            for chunk in chunks[1:]:
+                random.shuffle(chunk)
+
+        if is_train:
+            self.train_set_length = sum([len(chunk) for chunk in chunks])
+
+        for chunk in chunks:
+            dataset = TrainDataset(chunk, self.cfg.negatives_amount, self.train_tokenizer)
+            yield DataLoader(
+                dataset,
+                batch_size=batch_size,
+                num_workers=self.cfg.biencoder.num_workers
+            )
 
     def prepare_data(self) -> None:
         pass
 
     def setup(self, stage: Optional[str] = None):
-        train_tokenizer = TrainTokenizer(self.cfg.biencoder.sequence_length)
+        self.train_sets = self._make_set_splits(
+            dataset_path=self.train_set_path,
+            batch_size=self.cfg.biencoder.train_batch_size,
+            is_train=True
+        )
 
-        self.train_sets = self._make_set_splits(self.train_set_path, train_tokenizer)
-        self.eval_sets = self._make_set_splits(self.eval_set_path, train_tokenizer, self.cfg.datasets.split_size)
-        self.test_set = TrainDataset(read_json_file(self.test_set_path), self.cfg.negatives_amount, train_tokenizer)
+        self.eval_sets = self._make_set_splits(
+            dataset_path=self.eval_set_path,
+            batch_size=self.cfg.biencoder.val_batch_size,
+            split_size=self.cfg.datasets.split_size
+        )
 
-        if self.cfg.strategy == 'baseline':
-            self.train_set_length = len(self.train_sets)
-        else:
-            self.train_set_length = sum([len(dataset) for dataset in self.train_sets])
+    def train_dataloader(self) -> List[DataLoader]:
+        return self.train_sets
 
+    def val_dataloader(self) -> List[DataLoader]:
+        return self.eval_sets
+
+    def index_dataloader(self) -> DataLoader:
         index_tokenizer = IndexTokenizer(self.cfg.biencoder.sequence_length)
-        self.index_set = IndexDataset(read_json_file(self.index_set_path), index_tokenizer)
+        data = read_json_file(self.index_set_path)
+        index_set = IndexDataset(data, index_tokenizer)
 
-    def train_dataloader(self):
-        return [
-            DataLoader(
-                train_set,
-                batch_size=self.cfg.biencoder.train_batch_size,
-                num_workers=self.cfg.biencoder.num_workers
-            ) for train_set in self.train_sets
-        ]
-
-    def val_dataloader(self):
-        return [
-            DataLoader(
-                eval_set,
-                batch_size=self.cfg.biencoder.val_batch_size,
-                num_workers=self.cfg.biencoder.num_workers
-            ) for eval_set in self.eval_sets
-        ]
-
-    def index_dataloader(self):
         return DataLoader(
-            self.index_set,
+            index_set,
             batch_size=self.cfg.biencoder.index_batch_size,
             num_workers=self.cfg.biencoder.num_workers
         )
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
+        data = read_json_file(self.test_set_path)
+        test_set = TrainDataset(data, self.cfg.negatives_amount, self.train_tokenizer)
+
         return DataLoader(
-            self.test_set,
+            test_set,
             batch_size=self.cfg.biencoder.test_batch_size,
             num_workers=self.cfg.biencoder.num_workers
         )

@@ -5,10 +5,10 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.optim import AdamW
-from torch.optim.lr_scheduler import LambdaLR
+from torch.optim import AdamW, Optimizer
 
-from continual_ranking.dpr.data import TokenizedIndexSample, TokenizedTrainingSample
+from continual_ranking.dpr.data.index_dataset import TokenizedIndexSample
+from continual_ranking.dpr.data.train_dataset import TokenizedTrainingSample
 from continual_ranking.dpr.models.encoder import Encoder
 
 logger = logging.getLogger(__name__)
@@ -28,35 +28,37 @@ class BiEncoder(pl.LightningModule):
         self.context_model: Encoder = Encoder.init_encoder()
 
         self.max_iterations = max_iterations
-        self.scheduler = None
 
-        self.train_loss_roll = 0
-        self.train_loss_epoch = 0
-        self.train_acc_roll = 0
-        self.train_acc_step = 0
+        self.index: Union[list, Tensor] = []
+        self.test: Union[list, Tensor] = []
+        self.index_mode = False
+
+        self.experiment_id = 0
+
         self.train_length = 0
+        self.train_loss_roll = 0
+        self.train_acc_step = 0
+        self.train_acc_roll = 0
         self.train_length_met = 0
 
-        self.val_acc_roll = 0
-        self.val_acc_step = 0
-        self.val_loss_epoch = 0
-        self.val_loss_roll = 0
         self.val_length = 0
-        self.val_length_met = 0
+        self.val_acc_step = 0
+        self.val_loss_step = 0
 
-        self.test_loss_roll = 0
-        self.test_loss_epoch = 0
-        self.test_acc_roll = 0
-        self.test_acc_step = 0
+        self.val_loss_avg = 0
+        self.val_acc_avg = 0
+        self.validations_amount = 0
+
         self.test_length = 0
-        self.test_length_met = 0
+        self.test_acc_step = 0
+        self.test_loss_step = 0
 
-        self.experiment_id = -1
+        self.ewc_mode = False
+        self.fisher_matrix = {}
 
-        self.index: Union[list, torch.Tensor] = []
-        self.index_mode = False
-        self.test = []
-        self.test_mode = False
+    def log_metrics(self, metrics: dict):
+        for key, value in metrics.items():
+            self.log(key, value)
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         q_pooled_out = self.question_model.forward(
@@ -77,21 +79,7 @@ class BiEncoder(pl.LightningModule):
 
         return q_pooled_out, ctx_pooled_out
 
-    def configure_scheduler(self, optimizer):
-        warmup_steps = self.cfg.biencoder.warmup_steps
-        total_training_steps = self.max_iterations * 30
-
-        def lr_lambda(current_step):
-            if current_step < warmup_steps:
-                return float(current_step) / float(max(1, warmup_steps))
-            return max(
-                1e-7,
-                float(total_training_steps - current_step) / float(max(1, total_training_steps - warmup_steps)),
-            )
-
-        self.scheduler = LambdaLR(optimizer, lr_lambda)
-
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Optimizer:
         no_decay = ["bias", "LayerNorm.weight"]
         parameters = [
             {
@@ -104,7 +92,6 @@ class BiEncoder(pl.LightningModule):
             },
         ]
         optimizer = AdamW(parameters, lr=self.cfg.biencoder.learning_rate, eps=self.cfg.biencoder.adam_eps)
-        # self.configure_scheduler(optimizer)
         return optimizer
 
     @staticmethod
@@ -120,72 +107,59 @@ class BiEncoder(pl.LightningModule):
         loss = F.nll_loss(
             softmax_scores,
             torch.tensor(positive_ctx_indices).to(softmax_scores.device),
-            reduction='mean',
         )
 
         max_score, max_idxs = torch.max(softmax_scores, 1)
         correct_predictions = (max_idxs == torch.tensor(positive_ctx_indices).to(max_idxs.device)).sum()
 
-        return loss, correct_predictions.sum().item()
+        return loss, correct_predictions.sum().detach().item()
 
-    def _shared_step(self, batch: TokenizedTrainingSample, batch_idx):
-        self.log('global_step', float(self.global_step))
+    def shared_step(self, batch: TokenizedTrainingSample, batch_idx, log=True):
+        if log:
+            self.log('experiment_id', float(self.experiment_id))
+            self.log('global_step', float(self.global_step))
 
         q_pooled_out, ctx_pooled_out = self.forward(batch)
 
         positives_idx = [x for x in range(ctx_pooled_out.shape[0]) if x % (1 + self.cfg.negatives_amount) == 0]
 
-        loss, correct_predictions = self.calculate_loss(
-            q_pooled_out,
-            ctx_pooled_out,
-            positives_idx,
-        )
+        loss, correct_predictions = self.calculate_loss(q_pooled_out, ctx_pooled_out, positives_idx)
 
-        return loss, correct_predictions
+        return loss, correct_predictions, q_pooled_out
 
     def training_step(self, batch: TokenizedTrainingSample, batch_idx):
-        loss, correct_predictions = self._shared_step(batch, batch_idx)
+        loss_step, correct_predictions, _ = self.shared_step(batch, batch_idx)
 
-        self.train_loss_epoch += loss.item()
-        self.train_loss_roll += loss.item()
+        self.train_loss_roll += loss_step.detach().item()
 
-        self.train_acc_roll += correct_predictions
         self.train_acc_step += correct_predictions
+        self.train_acc_roll += correct_predictions
+
         self.train_length_met += self.cfg.biencoder.train_batch_size
 
-        self.log('train_loss_step', loss)
-        self.log('train_loss_roll', self.train_loss_roll)
-        self.log('train_acc_roll', self.train_acc_roll / self.train_length_met)
+        log_dict = {
+            'train/loss_step': loss_step,
+            'train/loss_roll': self.train_loss_roll,
+            'train/acc_roll':  self.train_acc_roll / self.train_length_met
+        }
 
-        if self.global_step % 500 == 0:
+        if (self.global_step + 1) % 50 == 0:
+            log_dict['train/acc_step'] = self.train_acc_step / (50 * self.cfg.biencoder.train_batch_size)
             self.train_loss_roll = 0
-
-        if self.global_step % 100 == 0:
-            self.log('train_acc_step', self.train_acc_step / (100 * self.cfg.biencoder.train_batch_size))
             self.train_acc_step = 0
 
-        return loss
+        self.log_metrics(log_dict)
+        self.log('train/loss_epoch', loss_step, on_step=False, on_epoch=True)
+        return loss_step
 
     def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
-        loss, correct_predictions = self._shared_step(batch, batch_idx)
+        val_loss, correct_predictions, _ = self.shared_step(batch, batch_idx)
 
-        self.val_loss_epoch += loss.item()
-        self.val_loss_roll += loss.item()
-        self.val_acc_roll += correct_predictions
+        self.val_loss_step += val_loss.detach().item()
         self.val_acc_step += correct_predictions
-        self.val_length_met += self.cfg.biencoder.val_batch_size
 
-        self.log('val_loss', loss, on_step=True)
-        self.log('val_loss_roll', self.val_loss_roll)
-        self.log('val_acc_roll', self.val_acc_roll / self.val_length_met)
-
-        if self.global_step % 100 == 0:
-            self.val_loss_roll = 0
-
-            self.log('val_acc_step', self.val_acc_step / (100 * self.cfg.biencoder.val_batch_size))
-            self.val_acc_step = 0
-
-        return loss
+        self.log('val/loss_epoch', val_loss)
+        return val_loss
 
     def _index_step(self, batch: TokenizedIndexSample):
         index_pooled_out = self.context_model.forward(
@@ -194,68 +168,76 @@ class BiEncoder(pl.LightningModule):
             batch.attention_mask,
         )
 
-        self.index.append(index_pooled_out.to('cpu'))
+        self.index.append(index_pooled_out.to('cpu').detach())
 
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
-        loss, correct_predictions = self._shared_step(batch, batch_idx)
+        test_loss, correct_predictions, q_pooled_out = self.shared_step(batch, batch_idx)
 
-        self.test_loss_epoch += loss.item()
-        self.test_loss_roll += loss.item()
-        self.test_acc_roll += correct_predictions
+        self.test_loss_step += test_loss.detach().item()
         self.test_acc_step += correct_predictions
-        self.test_length_met += self.cfg.biencoder.test_batch_size
 
-        self.log('test_loss', loss, on_step=True)
-        self.log('test_loss_roll', self.test_loss_roll)
-        self.log('test_acc_roll', self.test_acc_roll / self.test_length_met)
+        self.log('test/loss_epoch', test_loss)
 
-        if self.global_step % 100 == 0:
-            self.test_loss_roll = 0
+        self.test.append(q_pooled_out.to('cpu').detach())
+        return test_loss
 
-            self.log('test_acc_step', self.test_acc_step / (100 * self.cfg.biencoder.test_batch_size))
-            self.test_acc_step = 0
+    def _ewc_step(self, batch: TokenizedTrainingSample, batch_idx):
+        with torch.enable_grad():
+            self.zero_grad()
+            ewc_loss, _, _ = self.shared_step(batch, batch_idx, False)
+        ewc_loss.backward()
 
-        test_pooled_out = self.question_model.forward(
-            batch.question_ids,
-            batch.question_segments,
-            batch.question_attn_mask,
-        )
+        with torch.no_grad():
+            for n, p in self.named_parameters():
+                if n in self.fisher_matrix and p.grad is not None:
+                    self.fisher_matrix[n].data += p.grad.data.to('cpu').detach().clone() ** 2
 
-        self.test.append(dot_product(test_pooled_out.to('cpu'), self.index))
+        return ewc_loss
 
-        return loss
-
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch, batch_idx) -> None:
         if self.index_mode:
             self._index_step(batch)
+        elif self.ewc_mode:
+            self._ewc_step(batch, batch_idx)
         else:
             self._test_step(batch, batch_idx)
 
     def on_after_backward(self) -> None:
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)
 
-    def on_train_epoch_end(self) -> None:
-        self.log('train_loss_epoch', self.train_loss_epoch)
-        self.log('train_acc_epoch', self.train_acc_roll / self.train_length)
-
     def on_train_epoch_start(self) -> None:
-        self.log('experiment_id', self.experiment_id)
-        self.train_acc_roll = 0
         self.train_length_met = 0
-        self.train_loss_epoch = 0
         self.train_loss_roll = 0
+        self.train_acc_roll = 0
 
-    def on_validation_epoch_end(self) -> None:
-        self.log('val_loss_epoch', self.val_loss_epoch)
-        self.log('val_acc_epoch', self.val_acc_roll / self.val_length)
-
-    def on_test_epoch_end(self) -> None:
-        if not self.index_mode:
-            self.log('test_loss_epoch', self.test_loss_epoch)
-            self.log('test_acc_epoch', self.test_acc_roll / self.test_length)
+    def on_train_epoch_end(self) -> None:
+        self.log_metrics({
+            'train/acc_epoch': self.train_acc_roll / self.train_length
+        })
 
     def on_validation_epoch_start(self) -> None:
-        self.val_acc_roll = 0
-        self.val_length_met = 0
-        self.val_loss_epoch = 0
-        self.val_loss_roll = 0
+        self.val_acc_step = 0
+
+    def on_validation_epoch_end(self) -> None:
+        val_acc = self.val_acc_step / self.val_length
+        self.log('val/acc_epoch', val_acc)
+
+        self.val_acc_avg += val_acc
+        self.val_loss_avg += self.val_loss_step / self.val_length
+        self.validations_amount += 1
+
+    def on_test_epoch_start(self) -> None:
+        self.test_acc_step = 0
+
+    def on_test_epoch_end(self) -> None:
+        if self.index_mode:
+            with torch.no_grad():
+                self.index = torch.cat(self.index).detach()
+        elif self.ewc_mode:
+            return
+        else:
+            test_acc = self.test_acc_step / self.test_length
+            self.log('test/acc_epoch', test_acc)
+
+            with torch.no_grad():
+                self.test = torch.cat(self.test).detach()
