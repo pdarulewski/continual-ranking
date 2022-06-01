@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from tqdm import tqdm
 from transformers import BertModel, BertTokenizer
 
@@ -106,13 +107,45 @@ def lengths():
         )
         print(f'{col} done!')
 
-    plt.hist(df['query'], bins=100)
+    df.to_csv(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'source', 'tokenized_lengths.csv'),
+        sep='\t'
+    )
+
+    sns.set(font_scale=3, style='whitegrid', rc={"figure.figsize": (16, 11)})
+
+    ax = sns.histplot(df, x='query', bins=60, color='#AC2D38', alpha=0.8)
+    ax.set(
+        xlabel='Query length',
+        ylabel='Frequency',
+        title='Query distribution',
+        xlim=(0, 50),
+        ylim=(0, 15_000),
+    )
+    plt.savefig(os.path.join(DATA_DIR, 'plot', 'query.pdf'))
     plt.show()
 
-    plt.hist(df['positive_passage'], bins=100)
+    ax = sns.histplot(df, x='positive_passage', bins=60, color='#AC2D38', alpha=0.8)
+    ax.set(
+        xlabel='Positive passage length',
+        ylabel='Frequency',
+        title='Positive passage distribution',
+        xlim=(0, 220),
+        ylim=(0, 15_000),
+
+    )
+    plt.savefig(os.path.join(DATA_DIR, 'plot', 'positives.pdf'))
     plt.show()
 
-    plt.hist(df['negative_passage'], bins=100)
+    ax = sns.histplot(df, x='negative_passage', bins=60, color='#AC2D38', alpha=0.8)
+    ax.set(
+        xlabel='Negative passage length',
+        ylabel='Frequency',
+        title='Negative passage distribution',
+        xlim=(0, 220),
+        ylim=(0, 15_000),
+    )
+    plt.savefig(os.path.join(DATA_DIR, 'plot', 'negatives.pdf'))
     plt.show()
 
 
