@@ -24,7 +24,7 @@ def main(cfg: DictConfig):
 
     seed_everything(42, workers=True)
 
-    accelerator = 'gpu' if torch.cuda.is_available() else 'cpu'
+    accelerator = 'gpu' if torch.cuda.is_available() and cfg.device == 'gpu' else 'cpu'
 
     cfg.device = accelerator
 
