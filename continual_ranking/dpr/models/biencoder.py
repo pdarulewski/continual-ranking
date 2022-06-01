@@ -45,10 +45,6 @@ class BiEncoder(pl.LightningModule):
         self.val_acc_step = 0
         self.val_loss_step = 0
 
-        self.val_loss_avg = 0
-        self.val_acc_avg = 0
-        self.validations_amount = 0
-
         self.test_length = 0
         self.test_acc_step = 0
         self.test_loss_step = 0
@@ -211,9 +207,7 @@ class BiEncoder(pl.LightningModule):
         self.train_acc_roll = 0
 
     def on_train_epoch_end(self) -> None:
-        self.log_metrics({
-            'train/acc_epoch': self.train_acc_roll / self.train_length
-        })
+        self.log('train/acc_epoch', self.train_acc_roll / self.train_length)
 
     def on_validation_epoch_start(self) -> None:
         self.val_acc_step = 0
@@ -221,10 +215,6 @@ class BiEncoder(pl.LightningModule):
     def on_validation_epoch_end(self) -> None:
         val_acc = self.val_acc_step / self.val_length
         self.log('val/acc_epoch', val_acc)
-
-        self.val_acc_avg += val_acc
-        self.val_loss_avg += self.val_loss_step / self.val_length
-        self.validations_amount += 1
 
     def on_test_epoch_start(self) -> None:
         self.test_acc_step = 0
@@ -236,8 +226,7 @@ class BiEncoder(pl.LightningModule):
         elif self.ewc_mode:
             return
         else:
-            test_acc = self.test_acc_step / self.test_length
-            self.log('test/acc_epoch', test_acc)
+            self.log('test/acc_epoch', self.test_acc_step / self.test_length)
 
             with torch.no_grad():
                 self.test = torch.cat(self.test).detach()
