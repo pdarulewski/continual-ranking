@@ -2,5 +2,4 @@ ewc:
   ewc_lambda: 0.1
 
 gem:
-  patterns_per_experience: 2
   memory_strength: 0.1

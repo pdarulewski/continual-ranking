@@ -8,16 +8,10 @@ from continual_ranking.continual_learning.strategy import Strategy
 
 
 class GEM(Strategy):
-    def __init__(
-            self,
-            patterns_per_experience: int,
-            memory_strength: float,
-    ):
+    def __init__(self, memory_strength: float, ):
         super().__init__()
 
-        self.patterns_per_experience = patterns_per_experience
         self.memory_strength = memory_strength
-
         self.current_gradient = None
 
     def on_train_epoch_start(self, trainer: ContinualTrainer, pl_module: "pl.LightningModule") -> None:
@@ -59,7 +53,7 @@ class GEM(Strategy):
             if num_pars != v_star.numel():
                 raise ValueError('Error in projecting gradient')
 
-    def _solve_quadratic_programming(self, gradient):
+    def _solve_quadratic_programming(self, gradient) -> torch.Tensor:
         memories_np = self.current_gradient.cpu().double().numpy()
         gradient_np = gradient.cpu().contiguous().view(-1).double().numpy()
         t = memories_np.shape[0]
