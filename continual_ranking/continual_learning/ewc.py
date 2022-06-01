@@ -1,5 +1,4 @@
 import logging
-import random
 
 import pytorch_lightning as pl
 import torch
@@ -25,8 +24,6 @@ class EWC(Strategy):
 
             self.saved_params = {}
             for n, p in pl_module.named_parameters():
-                if random.random() < 0.7:
-                    continue
                 if p.requires_grad and p is not None:
                     self.saved_params[n] = p.data.detach().clone()
 
