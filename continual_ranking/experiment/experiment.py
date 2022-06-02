@@ -55,18 +55,7 @@ class Experiment(Base):
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
 
             if self.ewc:
-                fisher_matrix = {}
-                for n, p in self.ewc.saved_params.items():
-                    t = torch.zeros_like(p.data).detach()
-                    fisher_matrix[n] = t
-
-                self.model.ewc_mode = True
-                self.model.fisher_matrix = fisher_matrix
-                self.trainer.test(self.model, train_dataloader)
-                self.model.ewc_mode = False
-
-                for n in fisher_matrix:
-                    fisher_matrix[n] /= len(train_dataloader)
+                self.ewc.train_dataloader = train_dataloader
 
             experiment_time = time.time() - start
             self.training_time += experiment_time
