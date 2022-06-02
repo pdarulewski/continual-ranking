@@ -50,7 +50,8 @@ class EWC(Strategy):
         penalty = 0
         for n, p in pl_module.named_parameters():
             if n in self.fisher_matrix:
-                loss = self.fisher_matrix[n] * (p - self.saved_params[n]) ** 2
+                diff = (p - self.saved_params[n].to(pl_module.device)) ** 2
+                loss = self.fisher_matrix[n].to(pl_module.device) * diff
                 penalty += loss.sum()
         return penalty
 
@@ -61,5 +62,6 @@ class EWC(Strategy):
             loss: torch.Tensor
     ) -> torch.Tensor:
         if trainer.task_id > 0:
-            loss += self.ewc_lambda * self._penalty(pl_module)
+            penalty = self._penalty(pl_module)
+            loss += self.ewc_lambda * penalty
         return loss
