@@ -19,9 +19,9 @@ class GEM(Strategy):
             return
 
         gradient = [torch.cat([
-            p.grad.flatten()
+            p.grad.detach().flatten()
             if p.grad is not None
-            else torch.zeros(p.numel(), device=pl_module.device)
+            else torch.zeros(p.numel())
             for p in pl_module.parameters()
         ], dim=0)]
 
@@ -32,9 +32,9 @@ class GEM(Strategy):
             return
 
         gradient = torch.cat([
-            p.grad.flatten()
+            p.grad.detach().flatten()
             if p.grad is not None
-            else torch.zeros(p.numel(), device=pl_module.device)
+            else torch.zeros(p.numel())
             for p in pl_module.parameters()
         ], dim=0)
 
