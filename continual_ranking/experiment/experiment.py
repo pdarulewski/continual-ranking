@@ -56,6 +56,7 @@ class Experiment(Base):
 
             if self.ewc:
                 self.ewc.train_dataloader = train_dataloader
+                self.ewc.calculate_importances(self.trainer, self.model, train_dataloader)
 
             experiment_time = time.time() - start
             self.training_time += experiment_time

@@ -31,9 +31,7 @@ class EWC(Strategy):
                 if p.requires_grad and p is not None:
                     self.saved_params[n] = p.data.detach().clone()
 
-        self.calculate_importances(trainer, pl_module)
-
-    def calculate_importances(self, trainer: ContinualTrainer, pl_module: BiEncoder):
+    def calculate_importances(self, trainer: ContinualTrainer, pl_module: BiEncoder, train_dataloader: DataLoader):
         self.fisher_matrix = {}
         for n, p in self.saved_params.items():
             t = torch.zeros_like(p.data).detach()
@@ -41,7 +39,7 @@ class EWC(Strategy):
 
         pl_module.ewc_mode = True
         pl_module.fisher_matrix = self.fisher_matrix
-        trainer.test(pl_module, self.train_dataloader)
+        trainer.test(pl_module, train_dataloader)
         pl_module.ewc_mode = False
 
         for n in self.fisher_matrix:
