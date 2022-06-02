@@ -31,19 +31,21 @@ class EWC(Strategy):
                 if p.requires_grad and p is not None:
                     self.saved_params[n] = p.data.detach().clone()
 
-    def calculate_importances(self, pl_module: BiEncoder, trainer: ContinualTrainer):
-        fisher_matrix = {}
+        self.calculate_importances(trainer, pl_module)
+
+    def calculate_importances(self, trainer: ContinualTrainer, pl_module: BiEncoder):
+        self.fisher_matrix = {}
         for n, p in self.saved_params.items():
             t = torch.zeros_like(p.data).detach()
-            fisher_matrix[n] = t
+            self.fisher_matrix[n] = t
 
         pl_module.ewc_mode = True
         pl_module.fisher_matrix = self.fisher_matrix
         trainer.test(pl_module, self.train_dataloader)
         pl_module.ewc_mode = False
 
-        for n in fisher_matrix:
-            fisher_matrix[n] /= len(self.train_dataloader)
+        for n in self.fisher_matrix:
+            self.fisher_matrix[n] /= len(self.train_dataloader)
 
     @torch.no_grad()
     def _penalty(self, pl_module: "pl.LightningModule"):
