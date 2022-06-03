@@ -125,10 +125,7 @@ class Experiment(Base):
         self.trainer.test(self.model, train_dataloader)
         self.model.forgetting_mode = False
 
-        self.alert(
-            title=f'Testing forgetting finished!',
-            text=f'Tested {self.model.test_length} samples, train shape: {self.model.test.shape}'
-        )
+        self.alert(title=f'Testing forgetting finished!')
 
     def _evaluate(self) -> None:
         self.alert(title=f'Evaluation for {self.experiment_name} #{self.experiment_id} started!')
