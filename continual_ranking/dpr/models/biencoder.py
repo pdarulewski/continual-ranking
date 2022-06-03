@@ -35,10 +35,8 @@ class BiEncoder(pl.LightningModule):
         self.experiment_id = 0
 
         self.train_length = 0
-        self.train_loss_roll = 0
         self.train_acc_step = 0
         self.train_acc_roll = 0
-        self.train_length_met = 0
 
         self.val_length = 0
         self.val_acc_step = 0
@@ -126,25 +124,14 @@ class BiEncoder(pl.LightningModule):
     def training_step(self, batch: TokenizedTrainingSample, batch_idx):
         loss_step, correct_predictions, _ = self.shared_step(batch, batch_idx)
 
-        self.train_loss_roll += loss_step.detach().item()
-
         self.train_acc_step += correct_predictions
         self.train_acc_roll += correct_predictions
 
-        self.train_length_met += self.cfg.biencoder.train_batch_size
-
-        log_dict = {
-            'train/loss_step': loss_step,
-            'train/loss_roll': self.train_loss_roll,
-            'train/acc_roll':  self.train_acc_roll / self.train_length_met
-        }
-
         if (self.global_step + 1) % 50 == 0:
-            log_dict['train/acc_step'] = self.train_acc_step / (50 * self.cfg.biencoder.train_batch_size)
-            self.train_loss_roll = 0
+            self.log('train/acc_step', self.train_acc_step / (50 * self.cfg.biencoder.train_batch_size))
             self.train_acc_step = 0
 
-        self.log_metrics(log_dict)
+        self.log('train/loss_step', loss_step)
         self.log('train/loss_epoch', loss_step, on_step=False, on_epoch=True)
         return loss_step
 
@@ -205,8 +192,6 @@ class BiEncoder(pl.LightningModule):
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.biencoder.max_grad_norm)
 
     def on_train_epoch_start(self) -> None:
-        self.train_length_met = 0
-        self.train_loss_roll = 0
         self.train_acc_roll = 0
 
     def on_train_epoch_end(self) -> None:
