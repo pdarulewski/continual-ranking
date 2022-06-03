@@ -65,4 +65,5 @@ class EWC(Strategy):
             penalty = self._penalty(pl_module)
             pl_module.log('train/ewc_penalty', penalty)
             loss += self.ewc_lambda * penalty
+            pl_module.log('train/ewc_loss', loss)
         return loss
