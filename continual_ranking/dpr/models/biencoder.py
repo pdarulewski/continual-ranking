@@ -31,7 +31,6 @@ class BiEncoder(pl.LightningModule):
 
         self.index: Union[list, Tensor] = []
         self.test: Union[list, Tensor] = []
-        self.index_mode = False
 
         self.experiment_id = 0
 
@@ -43,13 +42,14 @@ class BiEncoder(pl.LightningModule):
 
         self.val_length = 0
         self.val_acc_step = 0
-        self.val_loss_step = 0
 
         self.test_length = 0
         self.test_acc_step = 0
-        self.test_loss_step = 0
 
+        self.index_mode = False
+        self.forgetting_mode = False
         self.ewc_mode = False
+
         self.fisher_matrix = {}
 
     def log_metrics(self, metrics: dict):
@@ -151,7 +151,6 @@ class BiEncoder(pl.LightningModule):
     def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
         val_loss, correct_predictions, _ = self.shared_step(batch, batch_idx)
 
-        self.val_loss_step += val_loss.detach().item()
         self.val_acc_step += correct_predictions
 
         self.log('val/loss_epoch', val_loss)
@@ -169,12 +168,16 @@ class BiEncoder(pl.LightningModule):
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
         test_loss, correct_predictions, q_pooled_out = self.shared_step(batch, batch_idx)
 
-        self.test_loss_step += test_loss.detach().item()
         self.test_acc_step += correct_predictions
 
-        self.log('test/loss_epoch', test_loss)
+        if self.forgetting_mode:
+            metric = 'forgetting/loss_epoch'
+        else:
+            metric = 'test/loss_epoch'
+            self.test.append(q_pooled_out.to('cpu').detach())
 
-        self.test.append(q_pooled_out.to('cpu').detach())
+        self.log(metric, test_loss)
+
         return test_loss
 
     def _ewc_step(self, batch: TokenizedTrainingSample, batch_idx):
@@ -223,8 +226,13 @@ class BiEncoder(pl.LightningModule):
         if self.index_mode:
             with torch.no_grad():
                 self.index = torch.cat(self.index).detach()
+
         elif self.ewc_mode:
             return
+
+        elif self.forgetting_mode:
+            self.log('forgetting/acc_epoch', self.test_acc_step / self.test_length)
+
         else:
             self.log('test/acc_epoch', self.test_acc_step / self.test_length)
 
