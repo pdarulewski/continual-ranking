@@ -29,12 +29,12 @@ class EWC(Strategy):
             self.saved_params = {}
             for n, p in pl_module.named_parameters():
                 if p.requires_grad and p is not None:
-                    self.saved_params[n] = p.data.detach().clone()
+                    self.saved_params[n] = p.data
 
     def calculate_importances(self, trainer: ContinualTrainer, pl_module: BiEncoder, train_dataloader: DataLoader):
         self.fisher_matrix = {}
         for n, p in self.saved_params.items():
-            t = torch.zeros_like(p.data).detach()
+            t = torch.zeros_like(p.data)
             self.fisher_matrix[n] = t
 
         pl_module.ewc_mode = True
@@ -50,7 +50,7 @@ class EWC(Strategy):
         penalty = 0
         for n, p in pl_module.named_parameters():
             if n in self.fisher_matrix:
-                diff = (p - self.saved_params[n].to(pl_module.device)) ** 2
+                diff = (p - self.saved_params[n].to(pl_module.device)).pow(2)
                 loss = self.fisher_matrix[n].to(pl_module.device) * diff
                 penalty += loss.sum()
         return penalty

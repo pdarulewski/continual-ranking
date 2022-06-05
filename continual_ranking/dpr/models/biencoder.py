@@ -171,12 +171,11 @@ class BiEncoder(pl.LightningModule):
         with torch.enable_grad():
             self.zero_grad()
             ewc_loss, _, _ = self.shared_step(batch, batch_idx, False)
-        ewc_loss.backward()
+            ewc_loss.backward()
 
-        with torch.no_grad():
             for n, p in self.named_parameters():
                 if n in self.fisher_matrix and p.grad is not None:
-                    self.fisher_matrix[n].data += p.grad.data.to('cpu').detach().clone() ** 2
+                    self.fisher_matrix[n].data += p.grad.data.to('cpu').clone().pow(2)
 
         return ewc_loss
 
