@@ -131,8 +131,10 @@ class BiEncoder(pl.LightningModule):
             self.log('train/acc_step', self.train_acc_step / (50 * self.cfg.biencoder.train_batch_size))
             self.train_acc_step = 0
 
-        self.log('train/loss_step', loss_step)
-        self.log('train/loss_epoch', loss_step, on_step=False, on_epoch=True)
+        if not (self.cfg.experiment.strategy == 'ewc' and self.experiment_id > 0):
+            self.log('train/loss_step', loss_step)
+            self.log('train/loss_epoch', loss_step, on_step=False, on_epoch=True)
+
         return loss_step
 
     def validation_step(self, batch: TokenizedTrainingSample, batch_idx):
