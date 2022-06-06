@@ -58,12 +58,15 @@ def wiki_parsed():
     df = df.drop_duplicates(['positive_passage'])
 
     df.columns = ['question', 'positive_ctxs', 'negative_ctxs']
+    df = df.sample(frac=1)
 
-    embeddings = df.copy(True)
+    train = df.iloc[:25_000].copy()
+    val = df.iloc[25_000: 30_000].copy()
+    test = df.iloc[30_000: 35_000].copy()
+    index = df.iloc[:35_000].copy()
+    index = index[['question', 'positive_ctxs']]
 
-    train, dev, test = np.split(df.sample(frac=1, random_state=42), [int(.6 * len(df)), int(.8 * len(df))])
-
-    for frame in (train, dev, test):
+    for frame in (train, val, test):
         frame['positive_ctxs'] = frame['positive_ctxs'].apply(
             lambda x: [x]
         )
@@ -76,7 +79,7 @@ def wiki_parsed():
         orient='records'
     )
 
-    dev.to_json(
+    val.to_json(
         os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'val.json'),
         orient='records'
     )
@@ -86,8 +89,7 @@ def wiki_parsed():
         orient='records'
     )
 
-    embeddings = embeddings[['question', 'positive_ctxs']]
-    embeddings.to_json(
+    index.to_json(
         os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'index.json'),
         orient='records'
     )
