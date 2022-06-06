@@ -1,8 +1,8 @@
 # @package datasets
-train_base: data/NQ/train_0.json
-val_base: data/NQ/val_0.json
-test_base: data/NQ/test_0.json
-index_base: data/NQ/index_0.json
+train_base: data/NQ/train.json
+val_base: data/NQ/val.json
+test_base: data/NQ/test.json
+index_base: data/NQ/index.json
 
 train_cl: data/MSMARCO/passages/train.json
 val_cl: data/MSMARCO/passages/val.json
