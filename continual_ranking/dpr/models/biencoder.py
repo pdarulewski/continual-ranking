@@ -4,6 +4,7 @@ from typing import Tuple, Union
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from omegaconf import DictConfig
 from torch import Tensor
 from torch.optim import AdamW, Optimizer
 
@@ -20,14 +21,12 @@ def dot_product(q_vectors: Tensor, ctx_vectors: Tensor) -> Tensor:
 
 class BiEncoder(pl.LightningModule):
 
-    def __init__(self, cfg, max_iterations: int):
+    def __init__(self, cfg: DictConfig):
         super().__init__()
         self.cfg = cfg
 
         self.question_model: Encoder = Encoder.init_encoder()
         self.context_model: Encoder = Encoder.init_encoder()
-
-        self.max_iterations = max_iterations
 
         self.index: Union[list, Tensor] = []
         self.test: Union[list, Tensor] = []

@@ -37,9 +37,6 @@ def nq() -> None:
         frame['positive_ctxs'] = frame['positive_ctxs'].apply(
             lambda x: [x]
         )
-        frame['negative_ctxs'] = frame['negative_ctxs'].apply(
-            lambda x: [x]
-        )
 
     train.to_json(
         os.path.join(DATA_DIR, 'NQ', 'train_0.json'),

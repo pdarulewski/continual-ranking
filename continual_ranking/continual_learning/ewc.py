@@ -23,8 +23,8 @@ class EWC(Strategy):
         self.fisher_matrix = {}
 
     def on_fit_end(self, trainer: ContinualTrainer, pl_module: BiEncoder) -> None:
-        if trainer.tasks > trainer.task_id:
-            logger.info('Calculating Fisher Matrix for EWC')
+        if trainer.task_id <= trainer.tasks - 1:
+            logger.info(f'Calculating Fisher Matrix for EWC, task: {trainer.task_id}')
 
             self.saved_params = {}
             for n, p in pl_module.named_parameters():

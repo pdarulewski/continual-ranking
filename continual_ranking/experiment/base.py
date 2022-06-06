@@ -1,5 +1,4 @@
 import logging
-import math
 import os
 import traceback
 from abc import abstractmethod
@@ -49,10 +48,7 @@ class Base:
 
     def setup_model(self) -> None:
         logger.info('Setting up model')
-        self.model = BiEncoder(
-            self.cfg,
-            math.ceil(self.datamodule.train_set_length / self.cfg.biencoder.train_batch_size)
-        )
+        self.model = BiEncoder(self.cfg)
 
     def setup_loggers(self) -> None:
         if self.logging_on:
@@ -114,7 +110,7 @@ class Base:
     def setup_trainer(self) -> None:
         logger.info('Setting up trainer')
         self.trainer = ContinualTrainer(
-            tasks=len(self.cfg.experiment.sizes) - 2,
+            tasks=len(self.cfg.experiment.cl_sizes),
             max_epochs=self.cfg.biencoder.max_epochs,
             accelerator=self.cfg.device,
             gpus=-1 if self.cfg.device == 'gpu' else 0,
