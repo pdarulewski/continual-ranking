@@ -25,7 +25,7 @@ class IndexTokenizer:
     def __init__(self, max_length: int):
         self.tokenizer = Tokenizer(max_length)
 
-    def __call__(self, sample: IndexSample):
+    def __call__(self, sample: IndexSample) -> TokenizedIndexSample:
         index_tokens = self.tokenizer(sample.positive_passages)
 
         return TokenizedIndexSample(
@@ -41,10 +41,10 @@ class IndexDataset(Dataset):
         self.data = data
         self.tokenizer = tokenizer
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> TokenizedIndexSample:
         json_sample = self.data[idx]
 
         sample = IndexSample(
