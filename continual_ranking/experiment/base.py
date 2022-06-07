@@ -35,6 +35,7 @@ class Base:
         self.strategies: Optional[Iterable[pl.Callback]] = None
 
         self.loggers: List[pl.loggers.LightningLoggerBase] = []
+        self._early_stopping = None
         self.callbacks: List[pl.Callback] = []
 
         self.ewc: Optional[EWC] = None
@@ -84,16 +85,18 @@ class Base:
 
     def setup_callbacks(self) -> None:
         logger.info('Setting up callbacks')
+        self._early_stopping = EarlyStopping(
+            monitor='val/loss_epoch',
+            min_delta=0.01,
+            verbose=True
+        )
+
         self.callbacks = [
             ModelCheckpoint(
                 filename=self.experiment_name + '-{epoch:02d}-{val/loss_epoch:.2f}',
                 monitor='val/loss_epoch',
             ),
-            EarlyStopping(
-                monitor='val/loss_epoch',
-                min_delta=0.01,
-                verbose=True
-            ),
+            self._early_stopping
         ]
 
     def prepare_dataloaders(self) -> None:

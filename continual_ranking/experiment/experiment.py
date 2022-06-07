@@ -62,6 +62,8 @@ class Experiment(Base):
             self._continual_strategies(train_dataloader)
             experiment_time = time.time() - start
 
+            self._early_stopping.wait_count = 0
+
             self.training_time += experiment_time
             self.wandb_log({'experiment_time': experiment_time, 'experiment_id': self.experiment_id})
 
