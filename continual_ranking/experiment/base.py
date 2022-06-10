@@ -7,7 +7,7 @@ from typing import Optional, List, Union, Any, Iterable
 import pytorch_lightning as pl
 import wandb
 from omegaconf import DictConfig
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger, CSVLogger
 from torch.utils.data import DataLoader
 
@@ -65,11 +65,6 @@ class Base:
             wandb.init()
 
             wandb.define_metric('experiment_id')
-            wandb.define_metric('val/loss_experiment', step_metric='experiment_id')
-            wandb.define_metric('val/acc_experiment', step_metric='experiment_id')
-
-            wandb.define_metric('test/loss_experiment', step_metric='experiment_id')
-            wandb.define_metric('test/acc_experiment', step_metric='experiment_id')
 
             wandb_logger.watch(self.model, log='all', log_freq=500)
 
@@ -92,11 +87,6 @@ class Base:
         )
 
         self.callbacks = [
-            ModelCheckpoint(
-                filename=self.experiment_name + '-{epoch:02d}-val_loss_epoch{val/loss_epoch:.2f}',
-                monitor='val/loss_epoch',
-                auto_insert_metric_name=False,
-            ),
             self._early_stopping
         ]
 

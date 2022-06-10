@@ -23,7 +23,6 @@ class Experiment(Base):
         self.experiment_id: int = 0
         self.training_time: float = 0
 
-        self.index_path: str = ''
         self.test_path: str = ''
 
         self.forgetting_dataloader: Optional[DataLoader] = None
@@ -55,6 +54,7 @@ class Experiment(Base):
 
             self.experiment_id = i if not id_ else id_
             self.model.experiment_id = self.experiment_id
+            self.model.experiment_name = self.experiment_name
             self.trainer.task_id = self.experiment_id
 
             start = time.time()
@@ -69,6 +69,8 @@ class Experiment(Base):
 
             with torch.no_grad():
                 self._evaluate()
+
+            self.trainer.save_checkpoint(f'{self.experiment_name}_{self.trainer.task_id}.ckpt')
 
         self.wandb_log({'training_time': self.training_time})
 
@@ -87,15 +89,15 @@ class Experiment(Base):
         self.trainer.test(self.model, index_dataloader)
         self.model.index_mode = False
 
-        self.index_path = f'index_{self.experiment_name}_{self.experiment_id}'
+        # store the rest of index if test finishes earlier
+        index_path = f'{self.experiment_name}_{self.experiment_id}.index{self.model.index_count}'
+        pickle_dump(self.model.index, index_path)
+        self.model.index = []
 
         self.alert(
             title=f'Indexing finished!',
-            text=f'Indexed {len(self.model.index)} samples, index shape: {self.model.index.shape}'
+            text=f'Indexed {len(index_dataloader.dataset)} samples'
         )
-
-        pickle_dump(self.model.index, self.index_path)
-        self.model.index = []
 
     def _test(self, test_dataloader: DataLoader) -> None:
         self.alert(
@@ -112,7 +114,7 @@ class Experiment(Base):
             text=f'Tested {self.model.test_length} samples, test shape: {self.model.test.shape}'
         )
 
-        self.test_path = f'test_{self.experiment_name}_{self.experiment_id}'
+        self.test_path = f'{self.experiment_name}_{self.experiment_id}.test'
         pickle_dump(self.model.test, self.test_path)
         self.model.test = []
 
@@ -142,8 +144,9 @@ class Experiment(Base):
 
         evaluator = Evaluator(
             self.cfg.biencoder.sequence_length,
-            index_dataloader.dataset, self.index_path,
-            test_dataloader.dataset, self.test_path,
+            index_dataloader.dataset,
+            test_dataloader.dataset,
+            self.test_path,
             'cuda:0' if self.cfg.device == 'gpu' else 'cpu',
             self.experiment_id
         )

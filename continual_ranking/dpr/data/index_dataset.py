@@ -1,5 +1,6 @@
+import gzip
+import logging
 from collections import namedtuple
-from typing import List
 
 from torch.utils.data import Dataset
 
@@ -7,7 +8,6 @@ from continual_ranking.dpr.data.tokenizer import Tokenizer
 
 IndexSample = namedtuple(
     'IndexSample', [
-        'query',
         'positive_passages',
     ]
 )
@@ -19,6 +19,8 @@ TokenizedIndexSample = namedtuple(
         'attention_mask',
     ]
 )
+
+logger = logging.getLogger(__name__)
 
 
 class IndexTokenizer:
@@ -37,21 +39,22 @@ class IndexTokenizer:
 
 class IndexDataset(Dataset):
 
-    def __init__(self, data: List[dict], tokenizer: IndexTokenizer):
-        self.data = data
+    def __init__(self, file_name: str, tokenizer: IndexTokenizer):
         self.tokenizer = tokenizer
 
+        self._file_name = file_name
+        # takes too long, hardcoded length
+        self._length = 83_385_308
+
     def __len__(self) -> int:
-        return len(self.data)
+        return self._length
 
     def __getitem__(self, idx) -> TokenizedIndexSample:
-        json_sample = self.data[idx]
+        with gzip.open(self._file_name, 'rt') as f:
+            f.seek(idx + 1)
+            line = f.readline()
 
-        sample = IndexSample(
-            json_sample['question'],
-            json_sample['positive_ctxs'],
-        )
-
+        sample = IndexSample(line)
         sample = self.tokenizer(sample)
 
         return sample

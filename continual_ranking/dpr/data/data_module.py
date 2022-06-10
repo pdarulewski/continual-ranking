@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 
 class DataPaths:
     def __init__(self, cfg: DictConfig):
-        self.train_base_path = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.train_base)
-        self.val_base_path = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.val_base)
-        self.test_base_path = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.test_base)
-        self.index_base_path = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.index_base)
+        self.train_base = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.train_base)
+        self.val_base = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.val_base)
+        self.test_base = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.test_base)
 
-        self.train_cl_path = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.train_cl)
-        self.val_cl_path = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.val_cl)
-        self.test_cl_path = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.test_cl)
-        self.index_cl_path = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.index_cl)
+        self.train_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.train_cl)
+        self.val_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.val_cl)
+        self.test_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.test_cl)
+
+        self.index = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.index)
 
 
 class DataModule(pl.LightningDataModule):
@@ -43,12 +43,12 @@ class DataModule(pl.LightningDataModule):
 
     def _read_training_data(self, is_train: bool) -> Tuple[List[dict], List[dict]]:
         if is_train:
-            base_path = self.paths.train_base_path
-            cl_path = self.paths.train_cl_path
+            base_path = self.paths.train_base
+            cl_path = self.paths.train_cl
 
         else:
-            base_path = self.paths.val_base_path
-            cl_path = self.paths.val_cl_path
+            base_path = self.paths.val_base
+            cl_path = self.paths.val_cl
 
         base_data = read_json_file(base_path)
         cl_data = read_json_file(cl_path)
@@ -135,13 +135,7 @@ class DataModule(pl.LightningDataModule):
 
     def index_dataloader(self) -> DataLoader:
         index_tokenizer = IndexTokenizer(self.cfg.biencoder.sequence_length)
-        data = []
-        data.extend(read_json_file(self.paths.index_base_path))
-        data.extend(read_json_file(self.paths.index_cl_path))
-
-        random.shuffle(data)
-
-        index_set = IndexDataset(data, index_tokenizer)
+        index_set = IndexDataset(self.paths.index, index_tokenizer)
 
         return DataLoader(
             index_set,
@@ -151,8 +145,8 @@ class DataModule(pl.LightningDataModule):
 
     def test_dataloader(self) -> DataLoader:
         data = []
-        data.extend(read_json_file(self.paths.test_base_path))
-        data.extend(read_json_file(self.paths.test_cl_path))
+        data.extend(read_json_file(self.paths.test_base))
+        data.extend(read_json_file(self.paths.test_cl))
 
         random.shuffle(data)
 
