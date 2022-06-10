@@ -91,8 +91,8 @@ class Experiment(Base):
         self.trainer.test(self.model, index_dataloader)
         self.model.index_mode = False
 
-        index_path = f'{self.experiment_name}_{self.experiment_id}.index'
-        pickle_dump(self.model.index, index_path)
+        self.index_path = f'{self.experiment_name}_{self.experiment_id}.index'
+        pickle_dump(self.model.index, self.index_path)
 
         self.alert(
             title=f'Indexing finished!',
