@@ -1,4 +1,4 @@
-import gzip
+import json
 import logging
 from collections import namedtuple
 
@@ -50,11 +50,11 @@ class IndexDataset(Dataset):
         return self._length
 
     def __getitem__(self, idx) -> TokenizedIndexSample:
-        with gzip.open(self._file_name, 'rt') as f:
+        with open(self._file_name, 'r') as f:
             f.seek(idx + 1)
-            line = f.readline()
+            d = json.loads(f.readline())
 
-        sample = IndexSample(line)
+        sample = IndexSample(d['0'])
         sample = self.tokenizer(sample)
 
         return sample
