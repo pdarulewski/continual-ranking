@@ -44,7 +44,7 @@ class IndexDataset(Dataset):
 
         self._file_name = file_name
         # takes too long, hardcoded length
-        self._length = 83_385_308
+        self._length = 4_040_000
 
     def __len__(self) -> int:
         return self._length
