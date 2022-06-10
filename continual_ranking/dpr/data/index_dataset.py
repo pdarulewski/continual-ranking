@@ -4,7 +4,7 @@ from typing import List
 
 from torch.utils.data import Dataset
 
-from continual_ranking.dpr.data.tokenizer import SimpleTokenizer
+from continual_ranking.dpr.data.tokenizer import Tokenizer
 
 IndexSample = namedtuple(
     'IndexSample', [
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class IndexTokenizer:
     def __init__(self, max_length: int):
-        self.tokenizer = SimpleTokenizer(max_length)
+        self.tokenizer = Tokenizer(max_length)
 
     def __call__(self, sample: IndexSample) -> TokenizedIndexSample:
         index_tokens = self.tokenizer(sample.ctxs)
