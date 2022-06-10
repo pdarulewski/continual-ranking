@@ -1,9 +1,12 @@
+import glob
 from typing import Dict
 
 import torch
 from transformers import BertTokenizer
 
 from continual_ranking.dpr.data.file_handler import pickle_load
+from continual_ranking.dpr.data.index_dataset import IndexDataset
+from continual_ranking.dpr.data.train_dataset import TrainDataset
 from continual_ranking.dpr.models.biencoder import dot_product
 
 
@@ -13,7 +16,6 @@ class Evaluator:
             self,
             max_length: int,
             index_dataset,
-            index_path: str,
             test_dataset,
             test_path: str,
             device: str,
@@ -21,13 +23,14 @@ class Evaluator:
     ):
         self.max_length = max_length
 
-        self.index_dataset = index_dataset
-        self.test_dataset = test_dataset
+        self.index_dataset: IndexDataset = index_dataset
+        self.test_dataset: TrainDataset = test_dataset
 
-        self.index_path = index_path
         self.test_path = test_path
 
-        self.k = [1, 5] + list(range(10, 110, 10))
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+
+        self.k = [1, 5] + list(range(10, 60, 10))
         self.top_k_docs = {k: 0 for k in self.k}
         self.mean_ap = {k: 0 for k in self.k}
 
@@ -35,23 +38,10 @@ class Evaluator:
 
         self.experiment_id = experiment_id
 
-    @torch.no_grad()
-    def _calculate_k_docs(self) -> None:
-        test = pickle_load(self.test_path).to(self.device)
-        index = pickle_load(self.index_path).to(self.device)
-
-        self.scores = dot_product(test, index)
-
-        self._k_docs()
-
-    @torch.no_grad()
-    def _k_docs(self) -> None:
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
-
-        questions = [i['positive_ctxs'][0] for i in self.test_dataset.data]
-
-        questions = tokenizer(
-            questions,
+    def _tokenize_test(self) -> torch.Tensor:
+        test_answers = [i['positive_ctxs'][0] for i in self.test_dataset.data]
+        test_answers = self.tokenizer(
+            test_answers,
             add_special_tokens=True,
             max_length=self.max_length,
             padding='max_length',
@@ -61,25 +51,33 @@ class Evaluator:
             return_token_type_ids=False,
         ).input_ids
 
-        answers = [i['positive_ctxs'] for i in self.index_dataset.data]
+        return test_answers
 
-        answers = tokenizer(
-            answers,
-            add_special_tokens=True,
-            max_length=self.max_length,
-            padding='max_length',
-            truncation=True,
-            return_tensors='pt',
-            return_attention_mask=False,
-            return_token_type_ids=False
-        ).input_ids
+    @torch.no_grad()
+    def _k_docs(self) -> None:
+        test_answers = self._tokenize_test()
+        test_encoded = pickle_load(self.test_path).to(self.device)
+
+        top_k_values = []
+        top_k_indices = []
+
+        for index_file in glob.glob('*.index*'):
+            index_encoded = pickle_load(index_file).to(self.device)
+            scores = dot_product(test_encoded, index_encoded)
+            top_k = torch.topk(scores, 50)
+
+            top_k_indices.append(top_k.indices)
+            top_k_values.append(top_k.values)
+
+        top_k_values = torch.cat([t for t in top_k_values], dim=1)
+        top_k_indices = torch.cat([t for t in top_k_indices], dim=1)
+
+        top_k = torch.topk(top_k_values, 3)
+        top_k = torch.gather(top_k_indices, 1, top_k.indices)
 
         for k in self.top_k_docs:
-            top_items = torch.topk(self.scores, k)
-            top_indices = top_items.indices
-
-            for i, row in enumerate(top_indices):
-                results = torch.tensor(questions[i] == answers[row])
+            for i, row in enumerate(top_k):
+                results = torch.tensor(test_answers[i] == self.index_dataset[row].input_ids)
 
                 for j, b in enumerate(results):
                     if b.all():
@@ -93,7 +91,7 @@ class Evaluator:
         return {f'k_map/{key}': value / len(self.test_dataset) for key, value in self.mean_ap.items()}
 
     def evaluate(self) -> Dict[str, float]:
-        self._calculate_k_docs()
+        self._k_docs()
         k_scores = self._calculate_acc()
         map_scores = self._calculate_map()
 
