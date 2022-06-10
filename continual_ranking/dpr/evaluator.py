@@ -30,7 +30,9 @@ class Evaluator:
 
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
-        self.k = [1, 5] + list(range(10, 60, 10))
+        self._max_k = 50
+
+        self.k = [1, 5] + list(range(10, self._max_k + 10, 10))
         self.top_k_docs = {k: 0 for k in self.k}
         self.mean_ap = {k: 0 for k in self.k}
 
@@ -64,7 +66,7 @@ class Evaluator:
         for index_file in glob.glob('*.index*'):
             index_encoded = pickle_load(index_file).to(self.device)
             scores = dot_product(test_encoded, index_encoded)
-            top_k = torch.topk(scores, 50)
+            top_k = torch.topk(scores, self._max_k)
 
             top_k_indices.append(top_k.indices)
             top_k_values.append(top_k.values)
@@ -72,7 +74,7 @@ class Evaluator:
         top_k_values = torch.cat([t for t in top_k_values], dim=1)
         top_k_indices = torch.cat([t for t in top_k_indices], dim=1)
 
-        top_k = torch.topk(top_k_values, 3)
+        top_k = torch.topk(top_k_values, self._max_k)
         top_k = torch.gather(top_k_indices, 1, top_k.indices)
 
         for k in self.top_k_docs:
