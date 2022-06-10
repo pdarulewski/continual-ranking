@@ -156,11 +156,12 @@ class BiEncoder(pl.LightningModule):
         )
 
         self.index.append(index_pooled_out.to('cpu').detach())
+        self.index_count += 1
 
-        if self.index_length == 500_000:
+        if self.index_count == 500_000:
             index_path = f'{self.experiment_name}_{self.experiment_id}.index{self.index_count}'
             pickle_dump(self.index, index_path)
-            self.index_count += 1
+            self.index_count = 0
             self.index = []
 
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
