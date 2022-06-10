@@ -24,6 +24,7 @@ class Experiment(Base):
         self.training_time: float = 0
 
         self.test_path: str = ''
+        self.index_path: str = ''
 
         self.forgetting_dataloader: Optional[DataLoader] = None
 
@@ -89,15 +90,15 @@ class Experiment(Base):
         self.trainer.test(self.model, index_dataloader)
         self.model.index_mode = False
 
-        # store the rest of index if test finishes earlier
-        index_path = f'{self.experiment_name}_{self.experiment_id}.index{self.model.index_count}'
+        index_path = f'{self.experiment_name}_{self.experiment_id}.index'
         pickle_dump(self.model.index, index_path)
-        self.model.index = []
 
         self.alert(
             title=f'Indexing finished!',
             text=f'Indexed {len(index_dataloader.dataset)} samples'
         )
+
+        self.model.index = []
 
     def _test(self, test_dataloader: DataLoader) -> None:
         self.alert(
@@ -109,13 +110,13 @@ class Experiment(Base):
 
         self.trainer.test(self.model, test_dataloader)
 
+        self.test_path = f'{self.experiment_name}_{self.experiment_id}.test'
+        pickle_dump(self.model.test, self.test_path)
+
         self.alert(
             title=f'Testing finished!',
             text=f'Tested {self.model.test_length} samples, test shape: {self.model.test.shape}'
         )
-
-        self.test_path = f'{self.experiment_name}_{self.experiment_id}.test'
-        pickle_dump(self.model.test, self.test_path)
         self.model.test = []
 
     def _forgetting(self, train_dataloader: DataLoader):
@@ -145,6 +146,7 @@ class Experiment(Base):
         evaluator = Evaluator(
             self.cfg.biencoder.sequence_length,
             index_dataloader.dataset,
+            self.index_path,
             test_dataloader.dataset,
             self.test_path,
             'cuda:0' if self.cfg.device == 'gpu' else 'cpu',

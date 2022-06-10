@@ -1,14 +1,14 @@
-import json
 import logging
 from collections import namedtuple
+from typing import List
 
 from torch.utils.data import Dataset
 
-from continual_ranking.dpr.data.tokenizer import Tokenizer
+from continual_ranking.dpr.data.tokenizer import SimpleTokenizer
 
 IndexSample = namedtuple(
     'IndexSample', [
-        'positive_passages',
+        'ctxs',
     ]
 )
 
@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 
 class IndexTokenizer:
     def __init__(self, max_length: int):
-        self.tokenizer = Tokenizer(max_length)
+        self.tokenizer = SimpleTokenizer(max_length)
 
     def __call__(self, sample: IndexSample) -> TokenizedIndexSample:
-        index_tokens = self.tokenizer(sample.positive_passages)
+        index_tokens = self.tokenizer(sample.ctxs)
 
         return TokenizedIndexSample(
             index_tokens['input_ids'].view(-1),
@@ -39,22 +39,20 @@ class IndexTokenizer:
 
 class IndexDataset(Dataset):
 
-    def __init__(self, file_name: str, tokenizer: IndexTokenizer):
+    def __init__(self, data: List[dict], tokenizer: IndexTokenizer):
+        self.data = data
         self.tokenizer = tokenizer
 
-        self._file_name = file_name
-        # takes too long, hardcoded length
-        self._length = 4_040_000
-
     def __len__(self) -> int:
-        return self._length
+        return len(self.data)
 
     def __getitem__(self, idx) -> TokenizedIndexSample:
-        with open(self._file_name, 'r') as f:
-            f.seek(idx + 1)
-            d = json.loads(f.readline())
+        json_sample = self.data[idx]
 
-        sample = IndexSample(d['0'])
+        sample = IndexSample(
+            json_sample['ctxs'],
+        )
+
         sample = self.tokenizer(sample)
 
         return sample

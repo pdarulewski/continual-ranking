@@ -8,7 +8,6 @@ from omegaconf import DictConfig
 from torch import Tensor
 from torch.optim import AdamW, Optimizer
 
-from continual_ranking.dpr.data.file_handler import pickle_dump
 from continual_ranking.dpr.data.index_dataset import TokenizedIndexSample
 from continual_ranking.dpr.data.train_dataset import TokenizedTrainingSample
 from continual_ranking.dpr.models.encoder import Encoder
@@ -156,13 +155,6 @@ class BiEncoder(pl.LightningModule):
         )
 
         self.index.append(index_pooled_out.to('cpu').detach())
-        self.index_count += 1
-
-        if self.index_count == 500_000:
-            index_path = f'{self.experiment_name}_{self.experiment_id}.index{self.index_count}'
-            pickle_dump(self.index, index_path)
-            self.index_count = 0
-            self.index = []
 
     def _test_step(self, batch: TokenizedTrainingSample, batch_idx):
         test_loss, correct_predictions, q_pooled_out = self.shared_step(batch, batch_idx)

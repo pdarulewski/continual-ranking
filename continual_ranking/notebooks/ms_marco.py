@@ -63,8 +63,9 @@ def wiki_parsed():
     train = df.iloc[:25_000].copy()
     val = df.iloc[25_000: 30_000].copy()
     test = df.iloc[30_000: 35_000].copy()
-    index = df.iloc[:35_000].copy()
-    index = index[['question', 'positive_ctxs']]
+    index = df.iloc[:350_000].copy()
+    index = index[['positive_ctxs', 'negative_ctxs']]
+    index = pd.DataFrame({'ctxs': pd.Series(index.values.ravel('F'))})
 
     for frame in (train, val, test):
         frame['positive_ctxs'] = frame['positive_ctxs'].apply(

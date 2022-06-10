@@ -26,7 +26,8 @@ class DataPaths:
         self.val_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.val_cl)
         self.test_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.test_cl)
 
-        self.index = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.index)
+        self.index_base = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.index_base)
+        self.index_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.index_cl)
 
 
 class DataModule(pl.LightningDataModule):
@@ -135,7 +136,13 @@ class DataModule(pl.LightningDataModule):
 
     def index_dataloader(self) -> DataLoader:
         index_tokenizer = IndexTokenizer(self.cfg.biencoder.sequence_length)
-        index_set = IndexDataset(self.paths.index, index_tokenizer)
+        data = []
+        data.extend(read_json_file(self.paths.index_base))
+        data.extend(read_json_file(self.paths.index_cl))
+
+        random.shuffle(data)
+
+        index_set = IndexDataset(data, index_tokenizer)
 
         return DataLoader(
             index_set,

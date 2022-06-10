@@ -1,4 +1,3 @@
-import glob
 from typing import Dict
 
 import torch
@@ -16,6 +15,7 @@ class Evaluator:
             self,
             max_length: int,
             index_dataset,
+            index_path: str,
             test_dataset,
             test_path: str,
             device: str,
@@ -27,6 +27,7 @@ class Evaluator:
         self.test_dataset: TrainDataset = test_dataset
 
         self.test_path = test_path
+        self.index_path = index_path
 
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
@@ -59,27 +60,16 @@ class Evaluator:
     def _k_docs(self) -> None:
         test_answers = self._tokenize_test()
         test_encoded = pickle_load(self.test_path).to(self.device)
+        index_encoded = pickle_load(self.index_path).to(self.device)
 
-        top_k_values = []
-        top_k_indices = []
-
-        for index_file in glob.glob('*.index*'):
-            index_encoded = pickle_load(index_file).to(self.device)
-            scores = dot_product(test_encoded, index_encoded)
-            top_k = torch.topk(scores, self._max_k)
-
-            top_k_indices.append(top_k.indices)
-            top_k_values.append(top_k.values)
-
-        top_k_values = torch.cat([t for t in top_k_values], dim=1)
-        top_k_indices = torch.cat([t for t in top_k_indices], dim=1)
-
-        top_k = torch.topk(top_k_values, self._max_k)
-        top_k = torch.gather(top_k_indices, 1, top_k.indices)
+        scores = dot_product(test_encoded, index_encoded)
 
         for k in self.top_k_docs:
-            for i, row in enumerate(top_k):
-                results = torch.tensor(test_answers[i] == self.index_dataset[row].input_ids)
+            top_items = torch.topk(scores, k)
+            top_indices = top_items.indices
+
+            for i, row in enumerate(top_indices):
+                results = torch.tensor(test_answers[i] == self.index_dataset[row])
 
                 for j, b in enumerate(results):
                     if b.all():
