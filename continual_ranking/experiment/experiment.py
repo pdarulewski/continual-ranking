@@ -9,7 +9,6 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from continual_ranking.dpr.data.file_handler import pickle_dump
-from continual_ranking.dpr.data.tokenizer import SimpleTokenizer
 from continual_ranking.dpr.evaluator import Evaluator
 from continual_ranking.experiment.base import Base
 
@@ -143,8 +142,6 @@ class Experiment(Base):
         self._forgetting(self.forgetting_dataloader)
         self._index(index_dataloader)
         self._test(test_dataloader)
-
-        index_dataloader.dataset.tokenizer = SimpleTokenizer(self.cfg.biencoder.sequence_length)
 
         evaluator = Evaluator(
             self.cfg.biencoder.sequence_length,
