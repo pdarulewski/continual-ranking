@@ -61,7 +61,7 @@ class Evaluator:
             return_token_type_ids=False,
         ).input_ids
 
-        answers = [i['positive_ctxs'] for i in self.index_dataset.data]
+        answers = [i['ctxs'] for i in self.index_dataset.data]
 
         answers = tokenizer(
             answers,
