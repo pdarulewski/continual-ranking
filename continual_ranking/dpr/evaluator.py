@@ -6,7 +6,6 @@ import torch
 from tqdm import tqdm
 
 from continual_ranking.dpr.data.file_handler import pickle_load
-from continual_ranking.dpr.data.tokenizer import SimpleTokenizer
 from continual_ranking.dpr.models.biencoder import dot_product
 
 logger = logging.getLogger(__name__)
@@ -16,20 +15,15 @@ class Evaluator:
 
     def __init__(
             self,
-            max_length: int,
-            index_dataset,
-            index_path: str,
-            test_dataset,
+            index_answers,
+            test_answers,
             test_path: str,
             device: str,
             experiment_id: int
     ):
-        self.max_length = max_length
+        self.index_answers = index_answers
+        self.test_answers = test_answers
 
-        self.index_dataset = index_dataset
-        self.test_dataset = test_dataset
-
-        self.index_path = index_path
         self.test_path = test_path
 
         self._max_k = 50
@@ -43,13 +37,7 @@ class Evaluator:
 
     @torch.no_grad()
     def _k_docs(self) -> None:
-        tokenizer = SimpleTokenizer(self.max_length)
-
-        self.index_dataset.tokenizer = tokenizer
         test_encoded = pickle_load(self.test_path).to(self.device)
-
-        test_answers = [i['positive_ctxs'][0] for i in self.test_dataset.data]
-        test_answers = tokenizer(test_answers)
 
         top_k_all_values = []
         top_k_all_indices = []
@@ -78,7 +66,7 @@ class Evaluator:
             logger.info(f'Top-k shape: {top_k.shape}')
 
             for i, row in tqdm(enumerate(top_k)):
-                results = torch.tensor(test_answers[i] == self.index_dataset[row])
+                results = self.test_answers[i] == self.index_answers[row]
 
                 for j, b in enumerate(results):
                     if b.all():
@@ -86,10 +74,10 @@ class Evaluator:
                         self.mean_ap[k] += 1 / (j + 1)
 
     def _calculate_acc(self) -> Dict[str, float]:
-        return {f'k_acc/{key}': value / len(self.test_dataset) for key, value in self.top_k_docs.items()}
+        return {f'k_acc/{key}': value / len(self.test_answers) for key, value in self.top_k_docs.items()}
 
     def _calculate_map(self) -> Dict[str, float]:
-        return {f'k_map/{key}': value / len(self.test_dataset) for key, value in self.mean_ap.items()}
+        return {f'k_map/{key}': value / len(self.test_answers) for key, value in self.mean_ap.items()}
 
     def evaluate(self) -> Dict[str, float]:
         self._k_docs()

@@ -3,7 +3,6 @@ from collections import namedtuple
 from typing import List, Union
 
 import numpy as np
-import torch
 from torch.utils.data import Dataset
 
 from continual_ranking.dpr.data.tokenizer import Tokenizer, SimpleTokenizer
@@ -48,14 +47,7 @@ class IndexDataset(Dataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self, idx) -> Union[TokenizedIndexSample, List[torch.Tensor]]:
-        idx = idx.to('cpu')
-        try:
-            return self._get_single(idx)
-        except IndexError:
-            return self._get_multiple(idx)
-
-    def _get_single(self, idx: int) -> TokenizedIndexSample:
+    def __getitem__(self, idx) -> TokenizedIndexSample:
         json_sample = self.data[idx]
 
         sample = IndexSample(
@@ -65,8 +57,3 @@ class IndexDataset(Dataset):
         sample = self.tokenizer(sample)
 
         return sample
-
-    def _get_multiple(self, idx: torch.Tensor) -> List[torch.Tensor]:
-        data = self.data[idx]
-        data = self.tokenizer([d['ctxs'] for d in data])
-        return data
