@@ -66,6 +66,7 @@ class IndexDataset(Dataset):
         return sample
 
     def _get_multiple(self, idx: torch.Tensor) -> List[torch.Tensor]:
+        idx = idx.to('cpu')
         data = self.data[idx]
         data = self.tokenizer([d['ctxs'] for d in data])
         return data
