@@ -92,7 +92,7 @@ class Experiment(Base):
 
         if self.model.index:
             with torch.no_grad():
-                self.index = torch.cat(self.model.index).detach()
+                self.model.index = torch.cat(self.model.index).detach()
             index_path = f'{self.experiment_name}_exp{self.experiment_id}.index{self.model.index_count}'
             pickle_dump(self.model.index, index_path)
             self.model.index = []

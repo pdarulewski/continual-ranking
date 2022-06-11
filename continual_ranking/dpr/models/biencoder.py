@@ -160,7 +160,7 @@ class BiEncoder(pl.LightningModule):
 
         self.index_size += 1
 
-        if self.index_size == 100_000:
+        if self.index_size == 300:
             with torch.no_grad():
                 self.index = torch.cat(self.index).detach()
 
