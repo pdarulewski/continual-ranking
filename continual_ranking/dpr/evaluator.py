@@ -64,8 +64,8 @@ class Evaluator:
 
             logger.info(f'Processed file: {index_file}')
 
-        top_k_all_values = torch.cat([t for t in top_k_all_values], dim=1)
-        top_k_all_indices = torch.cat([t for t in top_k_all_indices], dim=1)
+        top_k_all_values = torch.cat([t for t in top_k_all_values], dim=1).to(self.device)
+        top_k_all_indices = torch.cat([t for t in top_k_all_indices], dim=1).to(self.device)
 
         logger.info(f'Big top-k shape: {top_k_all_values.shape}')
 
