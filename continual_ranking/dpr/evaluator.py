@@ -1,11 +1,15 @@
 import glob
+import logging
 from typing import Dict
 
 import torch
+from tqdm import tqdm
 
 from continual_ranking.dpr.data.file_handler import pickle_load
 from continual_ranking.dpr.data.tokenizer import SimpleTokenizer
 from continual_ranking.dpr.models.biencoder import dot_product
+
+logger = logging.getLogger(__name__)
 
 
 class Evaluator:
@@ -58,14 +62,22 @@ class Evaluator:
             top_k_all_values.append(top_k.values)
             top_k_all_indices.append(top_k.indices)
 
+            logger.info(f'Processed file: {index_file}')
+
         top_k_all_values = torch.cat([t for t in top_k_all_values], dim=1)
         top_k_all_indices = torch.cat([t for t in top_k_all_indices], dim=1)
 
+        logger.info(f'Big top-k shape: {top_k_all_values.shape}')
+
         for k in self.top_k_docs:
+            logger.info(f'Calculating k: {k}')
+
             top_k = torch.topk(top_k_all_values, k)
             top_k = torch.gather(top_k_all_indices, 1, top_k.indices)
 
-            for i, row in enumerate(top_k):
+            logger.info(f'Top-k shape: {top_k.shape}')
+
+            for i, row in tqdm(enumerate(top_k)):
                 results = torch.tensor(test_answers[i] == self.index_dataset[row])
 
                 for j, b in enumerate(results):
