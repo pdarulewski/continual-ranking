@@ -1,9 +1,10 @@
+import glob
 from typing import Dict
 
 import torch
-from transformers import BertTokenizer
 
 from continual_ranking.dpr.data.file_handler import pickle_load
+from continual_ranking.dpr.data.tokenizer import SimpleTokenizer
 from continual_ranking.dpr.models.biencoder import dot_product
 
 
@@ -27,7 +28,8 @@ class Evaluator:
         self.index_path = index_path
         self.test_path = test_path
 
-        self.k = [1, 5] + list(range(10, 110, 10))
+        self._max_k = 50
+        self.k = [1, 5] + list(range(10, self._max_k + 10, 10))
         self.top_k_docs = {k: 0 for k in self.k}
         self.mean_ap = {k: 0 for k in self.k}
 
@@ -36,50 +38,35 @@ class Evaluator:
         self.experiment_id = experiment_id
 
     @torch.no_grad()
-    def _calculate_k_docs(self) -> None:
-        test = pickle_load(self.test_path).to(self.device)
-        index = pickle_load(self.index_path).to(self.device)
-
-        self.scores = dot_product(test, index)
-
-        self._k_docs()
-
-    @torch.no_grad()
     def _k_docs(self) -> None:
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+        tokenizer = SimpleTokenizer(self.max_length)
 
-        questions = [i['positive_ctxs'][0] for i in self.test_dataset.data]
+        self.index_dataset.tokenizer = tokenizer
+        test_encoded = pickle_load(self.test_path).to(self.device)
 
-        questions = tokenizer(
-            questions,
-            add_special_tokens=True,
-            max_length=self.max_length,
-            padding='max_length',
-            truncation=True,
-            return_tensors='pt',
-            return_attention_mask=False,
-            return_token_type_ids=False,
-        ).input_ids
+        test_answers = [i['positive_ctxs'][0] for i in self.test_dataset.data]
+        test_answers = tokenizer(test_answers)
 
-        answers = [i['ctxs'] for i in self.index_dataset.data]
+        top_k_all_values = []
+        top_k_all_indices = []
 
-        answers = tokenizer(
-            answers,
-            add_special_tokens=True,
-            max_length=self.max_length,
-            padding='max_length',
-            truncation=True,
-            return_tensors='pt',
-            return_attention_mask=False,
-            return_token_type_ids=False
-        ).input_ids
+        for index_file in glob.glob('*.index*'):
+            index_encoded = pickle_load(index_file).to(self.device)
+            scores = dot_product(test_encoded, index_encoded)
+
+            top_k = torch.topk(scores, self._max_k)
+            top_k_all_values.append(top_k.values)
+            top_k_all_indices.append(top_k.indices)
+
+        top_k_all_values = torch.cat([t for t in top_k_all_values], dim=1)
+        top_k_all_indices = torch.cat([t for t in top_k_all_indices], dim=1)
 
         for k in self.top_k_docs:
-            top_items = torch.topk(self.scores, k)
-            top_indices = top_items.indices
+            top_k = torch.topk(top_k_all_values, k)
+            top_k = torch.gather(top_k_all_indices, 1, top_k.indices)
 
-            for i, row in enumerate(top_indices):
-                results = torch.tensor(questions[i] == answers[row])
+            for i, row in enumerate(top_k):
+                results = torch.tensor(test_answers[i] == self.index_dataset[row])
 
                 for j, b in enumerate(results):
                     if b.all():
@@ -93,7 +80,7 @@ class Evaluator:
         return {f'k_map/{key}': value / len(self.test_dataset) for key, value in self.mean_ap.items()}
 
     def evaluate(self) -> Dict[str, float]:
-        self._calculate_k_docs()
+        self._k_docs()
         k_scores = self._calculate_acc()
         map_scores = self._calculate_map()
 

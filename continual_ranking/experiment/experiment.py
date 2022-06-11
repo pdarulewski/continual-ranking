@@ -90,15 +90,17 @@ class Experiment(Base):
         self.trainer.test(self.model, index_dataloader)
         self.model.index_mode = False
 
-        self.index_path = f'{self.experiment_name}_{self.experiment_id}.index'
-        pickle_dump(self.model.index, self.index_path)
+        if self.model.index:
+            with torch.no_grad():
+                self.index = torch.cat(self.model.index).detach()
+            index_path = f'{self.experiment_name}_exp{self.experiment_id}.index{self.model.index_count}'
+            pickle_dump(self.model.index, index_path)
+            self.model.index = []
 
         self.alert(
             title=f'Indexing finished!',
             text=f'Indexed {len(index_dataloader.dataset)} samples'
         )
-
-        self.model.index = []
 
     def _test(self, test_dataloader: DataLoader) -> None:
         self.alert(

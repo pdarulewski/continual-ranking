@@ -37,6 +37,6 @@ class SimpleTokenizer:
             return_tensors='pt',
             return_attention_mask=False,
             return_token_type_ids=False
-        )
+        ).input_ids
 
         return tokens
