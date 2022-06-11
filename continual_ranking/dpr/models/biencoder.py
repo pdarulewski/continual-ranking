@@ -160,11 +160,11 @@ class BiEncoder(pl.LightningModule):
 
         self.index_size += 1
 
-        if self.index_size == 200:
+        if self.index_size == 40:
             with torch.no_grad():
                 self.index = torch.cat(self.index).detach()
 
-            index_path = f'{self.experiment_name}_{self.experiment_id}.index{self.index_count}'
+            index_path = f'{self.experiment_name}_exp{self.experiment_id}.index{self.index_count}'
             pickle_dump(self.index, index_path)
             self.index_size = 0
             self.index_count += 1
