@@ -49,10 +49,9 @@ class IndexDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx) -> Union[TokenizedIndexSample, List[torch.Tensor]]:
-        idx = idx.to('cpu')
         try:
             return self._get_single(idx)
-        except IndexError:
+        except (IndexError, AttributeError):
             return self._get_multiple(idx)
 
     def _get_single(self, idx: int) -> TokenizedIndexSample:
@@ -67,6 +66,7 @@ class IndexDataset(Dataset):
         return sample
 
     def _get_multiple(self, idx: torch.Tensor) -> List[torch.Tensor]:
+        idx = idx.to('cpu')
         data = self.data[idx]
         data = self.tokenizer([d['ctxs'] for d in data])
         return data
