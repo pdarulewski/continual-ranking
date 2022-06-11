@@ -77,7 +77,7 @@ class Evaluator:
 
             logger.info(f'Top-k shape: {top_k.shape}')
 
-            for i, row in tqdm(enumerate(top_k)):
+            for i, row in tqdm(enumerate(top_k), total=len(top_k)):
                 results = torch.tensor(test_answers[i] == self.index_dataset[row])
 
                 for j, b in enumerate(results):

@@ -51,7 +51,7 @@ class IndexDataset(Dataset):
     def __getitem__(self, idx) -> Union[TokenizedIndexSample, List[torch.Tensor]]:
         try:
             return self._get_single(idx)
-        except (IndexError, AttributeError):
+        except (IndexError, AttributeError, TypeError):
             return self._get_multiple(idx)
 
     def _get_single(self, idx: int) -> TokenizedIndexSample:
