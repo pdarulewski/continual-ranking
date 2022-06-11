@@ -33,7 +33,7 @@ class Evaluator:
         self.test_path = test_path
 
         self._max_k = 50
-        self.k = [1, 5] + list(range(10, self._max_k + 10, 10))
+        self.k = [1, 5, 10, 20, 50]
         self.top_k_docs = {k: 0 for k in self.k}
         self.mean_ap = {k: 0 for k in self.k}
 
