@@ -9,7 +9,6 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from continual_ranking.dpr.data.file_handler import pickle_dump
-from continual_ranking.dpr.data.tokenizer import SimpleTokenizer
 from continual_ranking.dpr.evaluator import Evaluator
 from continual_ranking.experiment.base import Base
 
@@ -146,19 +145,11 @@ class Experiment(Base):
         self._index(index_dataloader)
         self._test(test_dataloader)
 
-        tokenizer = SimpleTokenizer(self.cfg.biencoder.sequence_length)
-
-        test_answers = [d['positive_ctxs'][0] for d in test_dataloader.dataset.data]
-        test_answers = tokenizer(test_answers)
-
-        index_answers = [d['ctxs'] for d in index_dataloader.dataset.data]
-        index_answers = tokenizer(index_answers)
-
-        del test_dataloader, index_dataloader
-
         evaluator = Evaluator(
-            index_answers,
-            test_answers,
+            self.cfg.biencoder.sequence_length,
+            index_dataloader.dataset,
+            self.index_path,
+            test_dataloader.dataset,
             self.test_path,
             'cuda:0' if self.cfg.device == 'gpu' else 'cpu',
             self.experiment_id
