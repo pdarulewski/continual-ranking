@@ -97,6 +97,8 @@ class Experiment(Base):
             pickle_dump(self.model.index, index_path)
             self.model.index = []
 
+        self.model.index_count = 0
+
         self.alert(
             title=f'Indexing finished!',
             text=f'Indexed {len(index_dataloader.dataset)} samples'
