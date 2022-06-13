@@ -54,7 +54,7 @@ class Evaluator:
         top_k_all_values = []
         top_k_all_indices = []
 
-        for index_file in glob.glob('*.index*'):
+        for index_file in glob.glob(f'*_exp{self.experiment_id}.index*'):
             index_encoded = pickle_load(index_file).to(self.device)
             scores = dot_product(test_encoded, index_encoded)
 
