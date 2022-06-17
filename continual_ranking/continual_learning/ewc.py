@@ -55,13 +55,8 @@ class EWC(Strategy):
                 penalty += loss.sum()
         return penalty
 
-    def on_before_backward(
-            self,
-            trainer: ContinualTrainer,
-            pl_module: "pl.LightningModule",
-            loss: torch.Tensor
-    ) -> None:
-        if trainer.task_id > 0:
+    def apply_penalty(self, pl_module: BiEncoder, loss: torch.Tensor) -> None:
+        if pl_module.experiment_id > 0:
             penalty = self._penalty(pl_module) * self.ewc_lambda
             pl_module.log('train/ewc_penalty', penalty)
             loss += penalty

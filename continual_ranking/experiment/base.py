@@ -120,6 +120,7 @@ class Base:
         if self.cfg.experiment.strategy == 'ewc':
             self.ewc = EWC(**self.cfg.ewc)
             strategy = self.ewc
+            self.model.ewc = self.ewc
         elif self.cfg.experiment.strategy == 'gem':
             strategy = GEM(**self.cfg.gem)
         else:

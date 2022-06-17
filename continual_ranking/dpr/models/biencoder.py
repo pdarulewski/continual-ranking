@@ -51,6 +51,7 @@ class BiEncoder(pl.LightningModule):
         self.index_mode = False
         self.forgetting_mode = False
         self.ewc_mode = False
+        self.ewc = None
 
         self.fisher_matrix = {}
 
@@ -138,6 +139,9 @@ class BiEncoder(pl.LightningModule):
         if not (self.cfg.experiment.strategy == 'ewc' and self.experiment_id > 0):
             self.log('train/loss_step', loss_step)
             self.log('train/loss_epoch', loss_step, on_step=False, on_epoch=True)
+
+        if self.ewc:
+            self.ewc.apply_penalty(self, loss_step)
 
         return loss_step
 
