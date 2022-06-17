@@ -59,7 +59,7 @@ class DataModule(pl.LightningDataModule):
     @staticmethod
     def _make_baseline(base_data: list, cl_data: list, base_size: int, cl_sizes: List[int]) -> List[List[dict]]:
         base_set = base_data[:base_size]
-        cl_set = cl_data[:sum(cl_sizes)]
+        cl_set = cl_data[:max(cl_sizes)]
 
         data = base_set + cl_set
         random.shuffle(data)
