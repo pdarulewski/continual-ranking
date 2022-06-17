@@ -1,5 +1,4 @@
 import logging
-import math
 import os
 import traceback
 from abc import abstractmethod
@@ -8,7 +7,7 @@ from typing import Optional, List, Union, Any, Iterable
 import pytorch_lightning as pl
 import wandb
 from omegaconf import DictConfig
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger, CSVLogger
 from torch.utils.data import DataLoader
 
@@ -36,6 +35,7 @@ class Base:
         self.strategies: Optional[Iterable[pl.Callback]] = None
 
         self.loggers: List[pl.loggers.LightningLoggerBase] = []
+        self._early_stopping = None
         self.callbacks: List[pl.Callback] = []
 
         self.ewc: Optional[EWC] = None
@@ -49,10 +49,7 @@ class Base:
 
     def setup_model(self) -> None:
         logger.info('Setting up model')
-        self.model = BiEncoder(
-            self.cfg,
-            math.ceil(self.datamodule.train_set_length / self.cfg.biencoder.train_batch_size)
-        )
+        self.model = BiEncoder(self.cfg)
 
     def setup_loggers(self) -> None:
         if self.logging_on:
@@ -68,11 +65,6 @@ class Base:
             wandb.init()
 
             wandb.define_metric('experiment_id')
-            wandb.define_metric('val/loss_experiment', step_metric='experiment_id')
-            wandb.define_metric('val/acc_experiment', step_metric='experiment_id')
-
-            wandb.define_metric('test/loss_experiment', step_metric='experiment_id')
-            wandb.define_metric('test/acc_experiment', step_metric='experiment_id')
 
             wandb_logger.watch(self.model, log='all', log_freq=500)
 
@@ -88,16 +80,14 @@ class Base:
 
     def setup_callbacks(self) -> None:
         logger.info('Setting up callbacks')
+        self._early_stopping = EarlyStopping(
+            monitor='val/loss_epoch',
+            min_delta=0.01,
+            verbose=True
+        )
+
         self.callbacks = [
-            ModelCheckpoint(
-                filename=self.experiment_name + '-{epoch:02d}-{val/loss_epoch:.2f}',
-                monitor='val/loss_epoch',
-            ),
-            EarlyStopping(
-                monitor='val/loss_epoch',
-                min_delta=0.01,
-                verbose=True
-            ),
+            self._early_stopping
         ]
 
     def prepare_dataloaders(self) -> None:
@@ -114,7 +104,7 @@ class Base:
     def setup_trainer(self) -> None:
         logger.info('Setting up trainer')
         self.trainer = ContinualTrainer(
-            tasks=len(self.cfg.experiment.sizes) - 2,
+            tasks=len(self.cfg.experiment.cl_sizes),
             max_epochs=self.cfg.biencoder.max_epochs,
             accelerator=self.cfg.device,
             gpus=-1 if self.cfg.device == 'gpu' else 0,

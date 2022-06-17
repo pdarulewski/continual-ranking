@@ -3,7 +3,7 @@ defaults:
   - datasets
   - biencoder
   - strategies
-  - experiment: ewc
+  - experiment: naive
 
 seed: 42
 

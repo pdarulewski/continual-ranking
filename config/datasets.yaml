@@ -1,10 +1,13 @@
 # @package datasets
-train: data/MSMARCO/passages/train.json
-val: data/MSMARCO/passages/val.json
-index: data/MSMARCO/passages/index.json
-test: data/MSMARCO/passages/test.json
+train_base: data/NQ/train.json
+val_base: data/NQ/val.json
+test_base: data/NQ/test.json
+index_base: data/NQ/index.json
 
-#index: data/MSMARCO/passages/index_test.json
-#test: data/MSMARCO/passages/test_test.json
+train_cl: data/MSMARCO/passages/train.json
+val_cl: data/MSMARCO/passages/val.json
+test_cl: data/MSMARCO/passages/test.json
+index_cl: data/MSMARCO/passages/index.json
+
 
 split_size: 0.2

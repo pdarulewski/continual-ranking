@@ -1,8 +1,9 @@
 import logging
-import random
+from typing import Optional
 
 import pytorch_lightning as pl
 import torch
+from torch.utils.data import DataLoader
 
 from continual_ranking.continual_learning.continual_trainer import ContinualTrainer
 from continual_ranking.continual_learning.strategy import Strategy
@@ -16,26 +17,41 @@ class EWC(Strategy):
         super().__init__()
         self.ewc_lambda = ewc_lambda
 
+        self.train_dataloader: Optional[DataLoader] = None
+
         self.saved_params = {}
         self.fisher_matrix = {}
 
     def on_fit_end(self, trainer: ContinualTrainer, pl_module: BiEncoder) -> None:
-        if trainer.tasks > trainer.task_id:
-            logger.info('Calculating Fisher Matrix for EWC')
+        if trainer.task_id <= trainer.tasks - 1:
+            logger.info(f'Calculating Fisher Matrix for EWC, task: {trainer.task_id}')
 
             self.saved_params = {}
             for n, p in pl_module.named_parameters():
-                if random.random() < 0.7:
-                    continue
                 if p.requires_grad and p is not None:
-                    self.saved_params[n] = p.data.detach().clone()
+                    self.saved_params[n] = p.data
+
+    def calculate_importances(self, trainer: ContinualTrainer, pl_module: BiEncoder, train_dataloader: DataLoader):
+        self.fisher_matrix = {}
+        for n, p in self.saved_params.items():
+            t = torch.zeros_like(p.data)
+            self.fisher_matrix[n] = t
+
+        pl_module.ewc_mode = True
+        pl_module.fisher_matrix = self.fisher_matrix
+        trainer.test(pl_module, train_dataloader)
+        pl_module.ewc_mode = False
+
+        for n in self.fisher_matrix:
+            self.fisher_matrix[n] /= len(self.train_dataloader)
 
     @torch.no_grad()
     def _penalty(self, pl_module: "pl.LightningModule"):
         penalty = 0
         for n, p in pl_module.named_parameters():
             if n in self.fisher_matrix:
-                loss = self.fisher_matrix[n] * (p - self.saved_params[n]) ** 2
+                diff = (p - self.saved_params[n].to(pl_module.device)).pow(2)
+                loss = self.fisher_matrix[n].to(pl_module.device) * diff
                 penalty += loss.sum()
         return penalty
 
@@ -44,7 +60,10 @@ class EWC(Strategy):
             trainer: ContinualTrainer,
             pl_module: "pl.LightningModule",
             loss: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> None:
         if trainer.task_id > 0:
-            loss += self.ewc_lambda * self._penalty(pl_module)
-        return loss
+            penalty = self._penalty(pl_module)
+            pl_module.log('train/ewc_penalty', penalty)
+            loss += self.ewc_lambda * penalty
+            pl_module.log('train/loss_step', loss)
+            pl_module.log('train/loss_epoch', loss, on_step=False, on_epoch=True)

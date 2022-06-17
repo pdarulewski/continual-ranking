@@ -1,5 +1,5 @@
-name: replay
-strategy: replay
+name: replay_constant
+strategy: replay_constant
 base_size: 15_000
 cl_sizes:
   - 5_000

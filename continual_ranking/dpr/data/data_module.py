@@ -1,7 +1,7 @@
 import logging
 import os
 import random
-from typing import Optional, List, Generator
+from typing import Optional, List, Generator, Tuple
 
 import hydra
 import numpy as np
@@ -16,93 +16,117 @@ from continual_ranking.dpr.data.train_dataset import TrainDataset, TrainTokenize
 logger = logging.getLogger(__name__)
 
 
+class DataPaths:
+    def __init__(self, cfg: DictConfig):
+        self.train_base = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.train_base)
+        self.val_base = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.val_base)
+        self.test_base = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.test_base)
+
+        self.train_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.train_cl)
+        self.val_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.val_cl)
+        self.test_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.test_cl)
+
+        self.index_base = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.index_base)
+        self.index_cl = os.path.join(hydra.utils.get_original_cwd(), cfg.datasets.index_cl)
+
+
 class DataModule(pl.LightningDataModule):
     def __init__(self, cfg: DictConfig):
         super().__init__()
         self.cfg = cfg
-
-        self.train_set_path = os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.train)
-        self.eval_set_path = os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.val)
-        self.index_set_path = os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.index)
-        self.test_set_path = os.path.join(hydra.utils.get_original_cwd(), self.cfg.datasets.test)
+        self.paths = DataPaths(cfg)
 
         self.train_sets = None
         self.eval_sets = None
         self.strategy = self.cfg.experiment.strategy
 
-        self.train_set_length = 0
-
         self.train_tokenizer = TrainTokenizer(self.cfg.biencoder.sequence_length)
 
-    def _make_set_splits(
-            self,
-            dataset_path: str,
-            batch_size: int,
-            is_train: bool = False,
-            split_size: float = 0
-    ) -> Generator[DataLoader, None, None]:
-        data = read_json_file(dataset_path)
-        random.seed(42)
-        random.shuffle(data)
-        chunks = []
+    def _read_training_data(self, is_train: bool) -> Tuple[List[dict], List[dict]]:
+        if is_train:
+            base_path = self.paths.train_base
+            cl_path = self.paths.train_cl
 
-        chunk_sizes = self.cfg.experiment.sizes
+        else:
+            base_path = self.paths.val_base
+            cl_path = self.paths.val_cl
+
+        base_data = read_json_file(base_path)
+        cl_data = read_json_file(cl_path)
+
+        return base_data, cl_data
+
+    @staticmethod
+    def _make_baseline(base_data: list, cl_data: list, base_size: int, cl_sizes: List[int]) -> List[List[dict]]:
+        base_set = base_data[:base_size]
+        cl_set = cl_data[:sum(cl_sizes)]
+
+        data = base_set + cl_set
+        random.shuffle(data)
+
+        return [data]
+
+    @staticmethod
+    def _make_naive(base_data: list, cl_data: list, base_size: int, cl_sizes: List[int]) -> List[List[dict]]:
+        base_set = base_data[:base_size]
+
+        chunks = [base_set]
+        cl_sizes = [0] + cl_sizes
+        for i in range(len(cl_sizes) - 1):
+            slice_ = cl_data[cl_sizes[i]: cl_sizes[i + 1]]
+            chunks.append(slice_)
+
+        return chunks
+
+    def _make_replay(self, datasets: list, base_size: int, cl_sizes: List[int]) -> List[List[dict]]:
+        logger.info('Preparing replay dataset')
+        replays = [list(np.random.choice(chunk, int(len(chunk) * 0.2))) for chunk in datasets[:-1]]
+        replays = [[], *replays]
+
+        if self.strategy == 'replay':
+            datasets = [dataset + replay for dataset, replay in zip(datasets, replays)]
+        else:
+            datasets = [chunk[len(replay):] + replay for chunk, replay in zip(datasets, replays)]
+
+        for dataset in datasets[1:]:
+            random.shuffle(dataset)
+
+        return datasets
+
+    def _make_set_splits(self, batch_size: int, split_size: float = 0) -> Generator[DataLoader, None, None]:
+        base_size = self.cfg.experiment.base_size
+        cl_sizes = list(self.cfg.experiment.cl_sizes)
 
         if split_size:
-            chunk_sizes = [int(size * split_size) for size in chunk_sizes]
+            base_size = int(base_size * split_size)
+            cl_sizes = [int(size * split_size) for size in cl_sizes]
+
+        base_data, cl_data = self._read_training_data(not bool(split_size))
 
         if self.strategy == 'baseline':
             logger.info('Preparing baseline dataset')
-            chunks = data[:chunk_sizes[-1]]
-            if is_train:
-                self.train_set_length = len(chunks)
+            datasets = self._make_baseline(base_data, cl_data, base_size, cl_sizes)
 
         else:
-            for i in range(len(chunk_sizes) - 1):
-                slice_ = data[chunk_sizes[i]: chunk_sizes[i + 1]]
-                chunks.append(slice_)
+            datasets = self._make_naive(base_data, cl_data, base_size, cl_sizes)
 
-        del data
+            if self.strategy.startswith('replay'):
+                datasets = self._make_replay(datasets, base_size, cl_sizes)
 
-        if self.strategy.startswith('replay'):
-            logger.info('Preparing replay dataset')
-            replay = [list(np.random.choice(chunk, int(len(chunk) * 0.2))) for chunk in chunks[:-1]]
-            replay = [[], *replay]
-
-            if self.strategy == 'replay':
-                chunks = [chunk + subset for chunk, subset in zip(chunks, replay)]
-            else:
-                chunks = [chunk[len(subset):] + subset for chunk, subset in zip(chunks, replay)]
-
-            for chunk in chunks[1:]:
-                random.shuffle(chunk)
-
-        if is_train:
-            self.train_set_length = sum([len(chunk) for chunk in chunks])
-
-        for chunk in chunks:
-            dataset = TrainDataset(chunk, self.cfg.negatives_amount, self.train_tokenizer)
+        for d in datasets:
+            dataset = TrainDataset(d, self.cfg.negatives_amount, self.train_tokenizer)
             yield DataLoader(
                 dataset,
                 batch_size=batch_size,
                 num_workers=self.cfg.biencoder.num_workers
             )
 
+    def setup(self, stage: Optional[str] = None):
+        self.train_sets = self._make_set_splits(self.cfg.biencoder.train_batch_size)
+        self.eval_sets = self._make_set_splits(self.cfg.biencoder.val_batch_size, self.cfg.datasets.split_size)
+
     def prepare_data(self) -> None:
         pass
-
-    def setup(self, stage: Optional[str] = None):
-        self.train_sets = self._make_set_splits(
-            dataset_path=self.train_set_path,
-            batch_size=self.cfg.biencoder.train_batch_size,
-            is_train=True
-        )
-
-        self.eval_sets = self._make_set_splits(
-            dataset_path=self.eval_set_path,
-            batch_size=self.cfg.biencoder.val_batch_size,
-            split_size=self.cfg.datasets.split_size
-        )
 
     def train_dataloader(self) -> List[DataLoader]:
         return self.train_sets
@@ -112,7 +136,12 @@ class DataModule(pl.LightningDataModule):
 
     def index_dataloader(self) -> DataLoader:
         index_tokenizer = IndexTokenizer(self.cfg.biencoder.sequence_length)
-        data = read_json_file(self.index_set_path)
+        data = []
+        data.extend(read_json_file(self.paths.index_base))
+        data.extend(read_json_file(self.paths.index_cl))
+
+        random.shuffle(data)
+
         index_set = IndexDataset(data, index_tokenizer)
 
         return DataLoader(
@@ -122,7 +151,12 @@ class DataModule(pl.LightningDataModule):
         )
 
     def test_dataloader(self) -> DataLoader:
-        data = read_json_file(self.test_set_path)
+        data = []
+        data.extend(read_json_file(self.paths.test_base))
+        data.extend(read_json_file(self.paths.test_cl))
+
+        random.shuffle(data)
+
         test_set = TrainDataset(data, self.cfg.negatives_amount, self.train_tokenizer)
 
         return DataLoader(

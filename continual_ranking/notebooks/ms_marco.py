@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from tqdm import tqdm
 from transformers import BertModel, BertTokenizer
 
@@ -57,12 +58,16 @@ def wiki_parsed():
     df = df.drop_duplicates(['positive_passage'])
 
     df.columns = ['question', 'positive_ctxs', 'negative_ctxs']
+    df = df.sample(frac=1)
 
-    embeddings = df.copy(True)
+    train = df.iloc[:25_000].copy()
+    val = df.iloc[25_000: 30_000].copy()
+    test = df.iloc[30_000: 35_000].copy()
+    index = df.iloc[:350_000].copy()
+    index = index[['positive_ctxs', 'negative_ctxs']]
+    index = pd.DataFrame({'ctxs': pd.Series(index.values.ravel('F'))})
 
-    train, dev, test = np.split(df.sample(frac=1, random_state=42), [int(.6 * len(df)), int(.8 * len(df))])
-
-    for frame in (train, dev, test):
+    for frame in (train, val, test):
         frame['positive_ctxs'] = frame['positive_ctxs'].apply(
             lambda x: [x]
         )
@@ -75,7 +80,7 @@ def wiki_parsed():
         orient='records'
     )
 
-    dev.to_json(
+    val.to_json(
         os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'val.json'),
         orient='records'
     )
@@ -85,8 +90,7 @@ def wiki_parsed():
         orient='records'
     )
 
-    embeddings = embeddings[['question', 'positive_ctxs']]
-    embeddings.to_json(
+    index.to_json(
         os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'index.json'),
         orient='records'
     )
@@ -106,13 +110,45 @@ def lengths():
         )
         print(f'{col} done!')
 
-    plt.hist(df['query'], bins=100)
+    df.to_csv(
+        os.path.join(DATA_DIR, 'MSMARCO', 'passages', 'source', 'tokenized_lengths.csv'),
+        sep='\t'
+    )
+
+    sns.set(font_scale=3, style='whitegrid', rc={"figure.figsize": (16, 11)})
+
+    ax = sns.histplot(df, x='query', bins=60, color='#AC2D38', alpha=0.8)
+    ax.set(
+        xlabel='Query length',
+        ylabel='Frequency',
+        title='Query distribution',
+        xlim=(0, 50),
+        ylim=(0, 15_000),
+    )
+    plt.savefig(os.path.join(DATA_DIR, 'plot', 'query.pdf'))
     plt.show()
 
-    plt.hist(df['positive_passage'], bins=100)
+    ax = sns.histplot(df, x='positive_passage', bins=60, color='#AC2D38', alpha=0.8)
+    ax.set(
+        xlabel='Positive passage length',
+        ylabel='Frequency',
+        title='Positive passage distribution',
+        xlim=(0, 220),
+        ylim=(0, 15_000),
+
+    )
+    plt.savefig(os.path.join(DATA_DIR, 'plot', 'positives.pdf'))
     plt.show()
 
-    plt.hist(df['negative_passage'], bins=100)
+    ax = sns.histplot(df, x='negative_passage', bins=60, color='#AC2D38', alpha=0.8)
+    ax.set(
+        xlabel='Negative passage length',
+        ylabel='Frequency',
+        title='Negative passage distribution',
+        xlim=(0, 220),
+        ylim=(0, 15_000),
+    )
+    plt.savefig(os.path.join(DATA_DIR, 'plot', 'negatives.pdf'))
     plt.show()
 
 

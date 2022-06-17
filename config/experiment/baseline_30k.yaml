@@ -1,4 +1,8 @@
 name: baseline_30k
 strategy: baseline
-sizes: [ 0, 20_000, 25_000, 30_000 ]
+base_size: 15_000
+cl_sizes:
+  - 5_000
+  - 10_000
+  - 15_000
 id: 3

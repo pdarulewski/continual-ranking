@@ -31,7 +31,7 @@ class TrainTokenizer:
     def __init__(self, max_length: int):
         self.tokenizer = Tokenizer(max_length)
 
-    def __call__(self, sample: TrainingSample):
+    def __call__(self, sample: TrainingSample) -> TokenizedTrainingSample:
         query_tokens = self.tokenizer(sample.query)
 
         ctx_tokens = defaultdict(list)
@@ -59,22 +59,13 @@ class TrainDataset(Dataset):
         self.negatives_amount = negatives_amount
         self.tokenizer = tokenizer
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> TokenizedTrainingSample:
         json_sample = self.data[idx]
-        if self.negatives_amount > 1:
-            negatives = random.sample(self.data, self.negatives_amount)
-            negatives = [i['negative_ctxs'][0] for i in negatives]
 
-            current_negative = json_sample['negative_ctxs']
-
-            if current_negative not in negatives:
-                negatives[0] = current_negative[0]
-
-        else:
-            negatives = json_sample['negative_ctxs']
+        negatives = self._find_negatives(json_sample)
 
         sample = TrainingSample(
             json_sample['question'],
@@ -85,3 +76,21 @@ class TrainDataset(Dataset):
         sample = self.tokenizer(sample)
 
         return sample
+
+    def _find_negatives(self, sample: dict):
+        if self.negatives_amount == len(sample['negative_ctxs']):
+            return sample['negative_ctxs']
+
+        elif self.negatives_amount > 1:
+            negatives = random.sample(self.data, self.negatives_amount)
+            negatives = [i['negative_ctxs'][0] for i in negatives]
+
+            current_negative = sample['negative_ctxs']
+
+            if current_negative not in negatives:
+                negatives[0] = current_negative[0]
+
+            return negatives
+
+        else:
+            return sample['negative_ctxs']

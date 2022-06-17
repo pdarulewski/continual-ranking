@@ -1,14 +1,16 @@
+import logging
 from collections import namedtuple
-from typing import List
+from typing import List, Union
 
+import numpy as np
+import torch
 from torch.utils.data import Dataset
 
-from continual_ranking.dpr.data.tokenizer import Tokenizer
+from continual_ranking.dpr.data.tokenizer import Tokenizer, SimpleTokenizer
 
 IndexSample = namedtuple(
     'IndexSample', [
-        'query',
-        'positive_passages',
+        'ctxs',
     ]
 )
 
@@ -20,13 +22,15 @@ TokenizedIndexSample = namedtuple(
     ]
 )
 
+logger = logging.getLogger(__name__)
+
 
 class IndexTokenizer:
     def __init__(self, max_length: int):
         self.tokenizer = Tokenizer(max_length)
 
-    def __call__(self, sample: IndexSample):
-        index_tokens = self.tokenizer(sample.positive_passages)
+    def __call__(self, sample: IndexSample) -> TokenizedIndexSample:
+        index_tokens = self.tokenizer(sample.ctxs)
 
         return TokenizedIndexSample(
             index_tokens['input_ids'].view(-1),
@@ -37,21 +41,32 @@ class IndexTokenizer:
 
 class IndexDataset(Dataset):
 
-    def __init__(self, data: List[dict], tokenizer: IndexTokenizer):
-        self.data = data
+    def __init__(self, data: List[dict], tokenizer: Union[IndexTokenizer, SimpleTokenizer]):
+        self.data = np.array(data)
         self.tokenizer = tokenizer
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Union[TokenizedIndexSample, List[torch.Tensor]]:
+        try:
+            return self._get_single(idx)
+        except (IndexError, AttributeError, TypeError):
+            return self._get_multiple(idx)
+
+    def _get_single(self, idx: int) -> TokenizedIndexSample:
         json_sample = self.data[idx]
 
         sample = IndexSample(
-            json_sample['question'],
-            json_sample['positive_ctxs'],
+            json_sample['ctxs'],
         )
 
         sample = self.tokenizer(sample)
 
         return sample
+
+    def _get_multiple(self, idx: torch.Tensor) -> List[torch.Tensor]:
+        idx = idx.to('cpu')
+        data = self.data[idx]
+        data = self.tokenizer([d['ctxs'] for d in data])
+        return data

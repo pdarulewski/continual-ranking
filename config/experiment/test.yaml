@@ -1,3 +1,6 @@
 name: test
 strategy: naive
-sizes: [ 0, 1600, 3200, 4800 ]
+base_size: 1_000
+cl_sizes:
+  - 1_000
+  - 2_000

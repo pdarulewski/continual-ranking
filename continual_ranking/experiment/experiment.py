@@ -1,11 +1,12 @@
-import gc
 import logging
 import time
+from typing import Optional
 
 import torch
 import wandb
 from omegaconf import DictConfig
 from omegaconf import OmegaConf
+from torch.utils.data import DataLoader
 
 from continual_ranking.dpr.data.file_handler import pickle_dump
 from continual_ranking.dpr.evaluator import Evaluator
@@ -22,8 +23,10 @@ class Experiment(Base):
         self.experiment_id: int = 0
         self.training_time: float = 0
 
-        self.index_path: str = ''
         self.test_path: str = ''
+        self.index_path: str = ''
+
+        self.forgetting_dataloader: Optional[DataLoader] = None
 
     def wandb_log(self, metrics: dict):
         if self.logging_on:
@@ -38,6 +41,9 @@ class Experiment(Base):
         id_ = self.cfg.experiment.get('id')
 
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
+            if i == 0:
+                self.forgetting_dataloader = train_dataloader
+
             self.model.train_length = len(train_dataloader.dataset)
             self.model.val_length = len(val_dataloader.dataset)
 
@@ -49,39 +55,32 @@ class Experiment(Base):
 
             self.experiment_id = i if not id_ else id_
             self.model.experiment_id = self.experiment_id
+            self.model.experiment_name = self.experiment_name
             self.trainer.task_id = self.experiment_id
 
             start = time.time()
             self.trainer.fit(self.model, train_dataloader, val_dataloader)
-
-            if self.ewc:
-                fisher_matrix = {}
-                for n, p in self.ewc.saved_params.items():
-                    t = torch.zeros_like(p.data).detach()
-                    fisher_matrix[n] = t
-
-                self.model.ewc_mode = True
-                self.model.fisher_matrix = fisher_matrix
-                self.trainer.test(self.model, train_dataloader)
-                self.model.ewc_mode = False
-
-                for n in fisher_matrix:
-                    fisher_matrix[n] /= len(train_dataloader)
-
+            self._continual_strategies(train_dataloader)
             experiment_time = time.time() - start
+
+            self._early_stopping.wait_count = 0
+
             self.training_time += experiment_time
             self.wandb_log({'experiment_time': experiment_time, 'experiment_id': self.experiment_id})
 
-            torch.cuda.empty_cache()
             with torch.no_grad():
                 self._evaluate()
-            torch.cuda.empty_cache()
 
-            gc.collect()
+            self.trainer.save_checkpoint(f'{self.experiment_name}_{self.trainer.task_id}.ckpt')
 
         self.wandb_log({'training_time': self.training_time})
 
-    def _index(self, index_dataloader) -> None:
+    def _continual_strategies(self, train_dataloader: DataLoader):
+        if self.ewc and self.trainer.task_id < self.trainer.tasks:
+            self.ewc.train_dataloader = train_dataloader
+            self.ewc.calculate_importances(self.trainer, self.model, train_dataloader)
+
+    def _index(self, index_dataloader: DataLoader) -> None:
         self.alert(
             title=f'Indexing for {self.experiment_name} started!',
             text=f'Index dataloader size: {len(index_dataloader.dataset)}'
@@ -91,17 +90,21 @@ class Experiment(Base):
         self.trainer.test(self.model, index_dataloader)
         self.model.index_mode = False
 
-        self.index_path = f'index_{self.experiment_name}_{self.experiment_id}'
+        if self.model.index:
+            with torch.no_grad():
+                self.model.index = torch.cat(self.model.index).detach()
+            index_path = f'{self.experiment_name}_exp{self.experiment_id}.index{self.model.index_count}'
+            pickle_dump(self.model.index, index_path)
+            self.model.index = []
+
+        self.model.index_count = 0
 
         self.alert(
             title=f'Indexing finished!',
-            text=f'Indexed {len(self.model.index)} samples, index shape: {self.model.index.shape}'
+            text=f'Indexed {len(index_dataloader.dataset)} samples'
         )
 
-        pickle_dump(self.model.index, self.index_path)
-        self.model.index = []
-
-    def _test(self, test_dataloader) -> None:
+    def _test(self, test_dataloader: DataLoader) -> None:
         self.alert(
             title=f'Testing for {self.experiment_name} #{self.experiment_id} started!',
             text=f'Test dataloader size: {len(test_dataloader.dataset)}'
@@ -111,28 +114,45 @@ class Experiment(Base):
 
         self.trainer.test(self.model, test_dataloader)
 
+        self.test_path = f'{self.experiment_name}_{self.experiment_id}.test'
+        pickle_dump(self.model.test, self.test_path)
+
         self.alert(
             title=f'Testing finished!',
             text=f'Tested {self.model.test_length} samples, test shape: {self.model.test.shape}'
         )
-
-        self.test_path = f'test_{self.experiment_name}_{self.experiment_id}'
-        pickle_dump(self.model.test, self.test_path)
         self.model.test = []
 
+    def _forgetting(self, train_dataloader: DataLoader):
+        self.alert(
+            title=f'Testing forgetting for {self.experiment_name} #{self.experiment_id} started!',
+            text=f'Training #0 dataloader size: {len(train_dataloader.dataset)}'
+        )
+
+        self.model.test_length = len(train_dataloader.dataset)
+        self.model.forgetting_mode = True
+        self.trainer.test(self.model, train_dataloader)
+        self.model.forgetting_mode = False
+
+        self.alert(title=f'Testing forgetting finished!')
+
     def _evaluate(self) -> None:
+        self.alert(title=f'Evaluation for {self.experiment_name} #{self.experiment_id} started!')
+        torch.cuda.empty_cache()
+
         index_dataloader = self.datamodule.index_dataloader()
         test_dataloader = self.datamodule.test_dataloader()
 
+        self._forgetting(self.forgetting_dataloader)
         self._index(index_dataloader)
         self._test(test_dataloader)
 
-        self.alert(title=f'Evaluation for {self.experiment_name} #{self.experiment_id} started!')
-
         evaluator = Evaluator(
             self.cfg.biencoder.sequence_length,
-            index_dataloader.dataset, self.index_path,
-            test_dataloader.dataset, self.test_path,
+            index_dataloader.dataset,
+            self.index_path,
+            test_dataloader.dataset,
+            self.test_path,
             'cuda:0' if self.cfg.device == 'gpu' else 'cpu',
             self.experiment_id
         )
@@ -145,3 +165,4 @@ class Experiment(Base):
             title=f'Evaluation finished!',
             text=f'```{scores}```'
         )
+        torch.cuda.empty_cache()
