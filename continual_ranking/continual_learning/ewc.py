@@ -62,8 +62,8 @@ class EWC(Strategy):
             loss: torch.Tensor
     ) -> None:
         if trainer.task_id > 0:
-            penalty = self._penalty(pl_module)
+            penalty = self._penalty(pl_module) * self.ewc_lambda
             pl_module.log('train/ewc_penalty', penalty)
-            loss += self.ewc_lambda * penalty
+            loss += penalty
             pl_module.log('train/loss_step', loss)
             pl_module.log('train/loss_epoch', loss, on_step=False, on_epoch=True)
