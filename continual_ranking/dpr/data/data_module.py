@@ -121,6 +121,15 @@ class DataModule(pl.LightningDataModule):
                 num_workers=self.cfg.biencoder.num_workers
             )
 
+    def make_forgetting_dataset(self) -> DataLoader:
+        base_data = read_json_file(self.paths.train_base)
+        base_set = base_data[:self.cfg.experiment.base_size]
+        return DataLoader(
+            base_set,
+            batch_size=self.cfg.biencoder.val_batch_size,
+            num_workers=self.cfg.biencoder.num_workers
+        )
+
     def setup(self, stage: Optional[str] = None):
         self.train_sets = self._make_set_splits(self.cfg.biencoder.train_batch_size)
         self.eval_sets = self._make_set_splits(self.cfg.biencoder.val_batch_size, self.cfg.datasets.split_size)

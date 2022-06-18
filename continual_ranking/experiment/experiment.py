@@ -42,7 +42,7 @@ class Experiment(Base):
 
         for i, (train_dataloader, val_dataloader) in enumerate(zip(self.train_dataloader, self.val_dataloader)):
             if i == 0:
-                self.forgetting_dataloader = train_dataloader
+                self.forgetting_dataloader = self.datamodule.make_forgetting_dataset()
 
             self.model.train_length = len(train_dataloader.dataset)
             self.model.val_length = len(val_dataloader.dataset)
