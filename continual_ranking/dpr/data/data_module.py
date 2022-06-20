@@ -124,8 +124,9 @@ class DataModule(pl.LightningDataModule):
     def make_forgetting_dataset(self) -> DataLoader:
         base_data = read_json_file(self.paths.train_base)
         base_set = base_data[:self.cfg.experiment.base_size]
+        dataset = TrainDataset(base_set, self.cfg.negatives_amount, self.train_tokenizer)
         return DataLoader(
-            base_set,
+            dataset,
             batch_size=self.cfg.biencoder.val_batch_size,
             num_workers=self.cfg.biencoder.num_workers
         )
