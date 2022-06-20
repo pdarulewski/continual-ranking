@@ -1,4 +1,4 @@
-name: baseline_20k
+name: baseline_15k
 strategy: baseline
 base_size: 15_000
 cl_sizes:
